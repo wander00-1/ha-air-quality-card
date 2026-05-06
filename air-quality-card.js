@@ -66,7 +66,7 @@ const CARD_CSS = `
 
   .top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 20px;
     margin-bottom: 14px;
   }
@@ -92,8 +92,6 @@ const CARD_CSS = `
 
   .graph-slot {
     width: 100%;
-    min-height: 90px;
-    overflow: hidden;
   }
 
   .graph-slot mini-graph-card {
@@ -101,13 +99,13 @@ const CARD_CSS = `
     --ha-card-box-shadow: none;
     --ha-card-border-radius: 0;
     display: block;
-    margin-top: -8px;
   }
 
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(72px, 100px));
     gap: 8px;
+    justify-content: center;
   }
 
   .tile {
@@ -124,7 +122,7 @@ const CARD_CSS = `
   }
 
   .tile-lbl {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--secondary-text-color, #aaa);
     white-space: nowrap;
     overflow: hidden;
@@ -316,7 +314,7 @@ class AirQualityCard extends HTMLElement {
             <div id="climate-graph" class="graph-slot"></div>
           </div>
         </div>
-        <div class="tiles" id="tiles">
+        <div class="tiles" id="tiles" style="${this._config.columns ? `grid-template-columns:repeat(${this._config.columns},1fr)` : ''}">
           ${TILE_DEFS.filter(t => this._config[t.cfgKey]).map(t => `
             <div class="tile" data-key="${t.key}" data-entity="${this._config[t.cfgKey]}">
               <div class="tile-lbl">${t.label}</div>
@@ -362,6 +360,7 @@ class AirQualityCard extends HTMLElement {
       hours_to_show: 24,
       line_width: 2,
       font_size: 85,
+      height: 80,
       fill: false,
       show: { icon: false, name: false, state: false, legend: false, labels: false },
     };
@@ -580,6 +579,7 @@ const EDITOR_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                               selector: { boolean: {} } },
   { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)', selector: { text: {} } },
+  { name: 'columns',            label: 'Tile columns (leave blank for auto)',             selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
   { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly)',         selector: { entity: { domain: 'sensor' } } },
   ...TILE_ENTITY_SCHEMA,
   { name: 'temperature_entity', label: 'Temperature Entity',                              selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
@@ -629,7 +629,7 @@ class AirQualityCardEditor extends HTMLElement {
           data[item.name] = this._config[item.name] ?? (BOOLEAN_DEFAULTS[item.name] ?? false);
         } else if (item.selector?.number !== undefined) {
           const m = item.name.match(/^(.+)_t([123])$/);
-          const def = m ? (THRESHOLDS[m[1]]?.[parseInt(m[2]) - 1] ?? 0) : 0;
+          const def = m ? (THRESHOLDS[m[1]]?.[parseInt(m[2]) - 1] ?? 0) : null;
           data[item.name] = this._config[item.name] ?? def;
         } else {
           data[item.name] = this._config[item.name] ?? '';

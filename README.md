@@ -4,11 +4,14 @@ A HACS-compatible Lovelace card that displays a composite air quality score, pol
 
 ## Features
 
-- Circular AQI gauge with color-coded score (0–100)
-- Pollutant tiles: PM1.0, PM2.5, PM10, VOC, CO₂ with threshold-based status and progress bars
-- Temperature and humidity display
-- 24-hour trend graphs via [mini-graph-card](https://github.com/kalkih/mini-graph-card)
+- Circular AQI gauge with color-coded score and Good / Moderate / Poor / Bad label
+- Pollutant tiles: PM1.0, PM2.5, PM4.0, PM10, VOC, CO₂, NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH — each with threshold-based status label and progress bar
+- Temperature and humidity current values with 24-hour combined trend graph via [mini-graph-card](https://github.com/kalkih/mini-graph-card)
+- Tap any tile to open the entity's detail popup
 - Visual config editor with entity pickers — no YAML required
+- Per-card configurable thresholds for every pollutant tile, with sensible defaults
+- Graceful unavailable/unknown state handling — gauge and tiles clearly indicate when a sensor is offline
+- Supports a native AQI entity (uses the sensor value directly) or computes a score from PM2.5, VOC, and CO₂
 - No hardcoded entities; works with any sensor integration
 
 ## Installation
@@ -31,7 +34,7 @@ type: module
 
 ## Dependencies
 
-Install [mini-graph-card](https://github.com/kalkih/mini-graph-card) via HACS for temperature and humidity trend graphs. The card renders without it — trend slots will be empty.
+Install [mini-graph-card](https://github.com/kalkih/mini-graph-card) via HACS for the temperature and humidity trend graph. The card renders without it — the graph slot will be empty.
 
 ## Configuration
 
@@ -39,64 +42,104 @@ Use the visual editor, or add YAML manually:
 
 ```yaml
 type: custom:air-quality-card
+aqi_entity: sensor.air_quality_index        # optional — uses value directly
 pm25_entity: sensor.particulate_matter_2_5um
 pm1_entity: sensor.particulate_matter_1um
+pm4_entity: sensor.particulate_matter_4um
 pm10_entity: sensor.particulate_matter_10um
 voc_entity: sensor.volatile_organic_compounds_index
 co2_entity: sensor.carbon_dioxide
+no2_entity: sensor.nitrogen_dioxide
 temperature_entity: sensor.temperature
 humidity_entity: sensor.humidity
+show_name: true
+tile_tap_enabled: true
 ```
+
+### Entity keys
 
 | Key | Required | Description |
 |-----|:--------:|-------------|
-| `pm25_entity` | ✅ | PM2.5 sensor (µg/m³) — used for scoring |
+| `aqi_entity` | — | Native AQI sensor — value used directly; falls back to computed score |
+| `pm25_entity` | ✅* | PM2.5 sensor (µg/m³) — used for scoring |
 | `pm1_entity` | — | PM1.0 sensor (µg/m³) |
+| `pm4_entity` | — | PM4.0 sensor (µg/m³) |
 | `pm10_entity` | — | PM10 sensor (µg/m³) |
-| `voc_entity` | — | VOC index sensor (0–500 scale) — used for scoring |
+| `voc_entity` | — | VOC index sensor — used for scoring |
 | `co2_entity` | — | CO₂ sensor (ppm) — used for scoring |
-| `temperature_entity` | — | Temperature sensor |
-| `humidity_entity` | — | Humidity sensor |
+| `no2_entity` | — | NO₂ sensor (µg/m³) |
+| `nh3_entity` | — | NH₃ ammonia sensor (µg/m³) |
+| `ch4_entity` | — | CH₄ methane sensor (ppm) |
+| `h2_entity` | — | H₂ hydrogen sensor (ppm) |
+| `ethanol_entity` | — | C₂H₅OH ethanol sensor (ppm) |
+| `rh_entity` | — | Relative humidity tile (%) |
+| `temperature_entity` | — | Temperature sensor (value display + trend graph) |
+| `humidity_entity` | — | Humidity sensor (value display + trend graph) |
+
+*`pm25_entity` is required unless `aqi_entity` is provided.
+
+### Display options
+
+| Key | Default | Description |
+|-----|:-------:|-------------|
+| `show_name` | `true` | Show device name above the card |
+| `name` | — | Override the device name with a custom string |
+| `tile_tap_enabled` | `true` | Tap a pollutant tile to open its entity detail popup |
 
 ## Scoring
 
-Score starts at 100 and penalties are subtracted based on pollutant levels:
+The AQI score runs from **0 (clean) to 100 (very polluted)**. Penalties are accumulated from available sensors; unavailable sensors are skipped rather than assumed clean.
 
-| Pollutant | Max Penalty | Threshold |
+| Pollutant | Max Penalty | Reference |
 |-----------|:-----------:|-----------|
 | PM2.5 | 40 pts | WHO 24h guideline (35 µg/m³) |
 | VOC | 25 pts | Index 300 |
-| CO₂ | 35 pts | Baseline 400 ppm, max 2000 ppm |
+| CO₂ | 35 pts | Baseline 400 ppm, ceiling 2000 ppm |
 
 | Score | Status |
 |:-----:|--------|
-| 80–100 | 🟢 Good |
-| 60–79 | 🟡 Moderate |
-| 40–59 | 🟠 Poor |
-| 0–39 | 🔴 Bad |
+| 0–25 | Good |
+| 26–50 | Moderate |
+| 51–75 | Poor |
+| 76–100 | Bad |
+
+If no scoring entity is available the gauge displays `—` and shows "Unavailable".
 
 ## Tile Thresholds
 
+Default thresholds (all configurable per card in the visual editor):
+
 | Pollutant | Good | Moderate | High | Very High |
 |-----------|------|----------|------|-----------|
-| PM1.0 | ≤ 10 | ≤ 25 | ≤ 50 | > 50 |
-| PM2.5 | ≤ 12 | ≤ 35 | ≤ 55 | > 55 |
-| PM10 | ≤ 50 | ≤ 100 | ≤ 150 | > 150 |
-| VOC | ≤ 150 | ≤ 250 | ≤ 400 | > 400 |
-| CO₂ (ppm) | ≤ 800 | ≤ 1000 | ≤ 1500 | > 1500 |
+| PM1.0 | ≤ 10 µg/m³ | ≤ 25 | ≤ 50 | > 50 |
+| PM2.5 | ≤ 12 µg/m³ | ≤ 35 | ≤ 55 | > 55 |
+| PM4.0 | ≤ 12 µg/m³ | ≤ 35 | ≤ 55 | > 55 |
+| PM10 | ≤ 50 µg/m³ | ≤ 100 | ≤ 150 | > 150 |
+| VOC | ≤ 150 idx | ≤ 250 | ≤ 400 | > 400 |
+| CO₂ | ≤ 800 ppm | ≤ 1000 | ≤ 1500 | > 1500 |
+| NO₂ | ≤ 40 µg/m³ | ≤ 100 | ≤ 200 | > 200 |
+| NH₃ | ≤ 200 µg/m³ | ≤ 1000 | ≤ 1500 | > 1500 |
+| CH₄ | ≤ 1000 ppm | ≤ 5000 | ≤ 25000 | > 25000 |
+| H₂ | ≤ 500 ppm | ≤ 2000 | ≤ 10000 | > 10000 |
+| C₂H₅OH | ≤ 100 ppm | ≤ 500 | ≤ 1000 | > 1000 |
+| RH | ≤ 60 % | ≤ 70 | ≤ 80 | > 80 |
 
 ## Development Roadmap
 
 - [x] **v0.1** — HACS project scaffold (hacs.json, README, card registration)
 - [x] **v0.2** — Core card rendering with entity inputs and scoring engine
 - [x] **v0.3** — Pollutant tiles with status labels and progress bars
-- [x] **v0.4** — Visual config editor with `ha-entity-picker`
-- [x] **v0.5** — mini-graph-card trend graph integration
-- [ ] **v0.6** — Unavailable/unknown entity state handling
-- [ ] **v0.7** — Optional card title, responsive tile layout improvements
+- [x] **v0.4** — Visual config editor using `ha-form` with entity selectors
+- [x] **v0.5** — Combined temperature + humidity trend graph via mini-graph-card
+- [x] **v0.6** — Unavailable/unknown entity state handling; native AQI entity support; extended sensor support (NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH, PM4.0); per-card configurable thresholds; tap tile to open entity detail
+- [ ] **v0.7** — Responsive tile layout improvements
 - [ ] **v1.0** — Stable release, HACS default repository submission
 
 ## Credits
 
-Scoring thresholds based on WHO, EPA, and ASHRAE guidelines.
-Original design concept by [jerahmeel-sudo](https://github.com/jerahmeel-sudo/Custom-Air-Quality-Card-with-score-trends-and-pollutant-tiles/).
+- **Design concept** — [jerahmeel-sudo](https://github.com/jerahmeel-sudo/Custom-Air-Quality-Card-with-score-trends-and-pollutant-tiles/) — original card layout and visual design that inspired this implementation
+- **Scoring thresholds** — based on WHO, EPA, and ASHRAE guidelines
+
+## License
+
+[MIT](LICENSE)
