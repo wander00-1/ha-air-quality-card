@@ -38,8 +38,11 @@ function computeScore(pm25, voc, co2) {
   return Math.round(Math.min(100, pm25Penalty + vocPenalty + co2Penalty));
 }
 
-function tileStatus(key, value) {
-  const [t1, t2, t3] = THRESHOLDS[key];
+function tileStatus(key, value, cfg) {
+  const def = THRESHOLDS[key];
+  const t1 = cfg?.[`${key}_t1`] ?? def[0];
+  const t2 = cfg?.[`${key}_t2`] ?? def[1];
+  const t3 = cfg?.[`${key}_t3`] ?? def[2];
   if (value <= t1) return { idx: 0, pct: (value / t1) * 25 };
   if (value <= t2) return { idx: 1, pct: 25 + ((value - t1) / (t2 - t1)) * 25 };
   if (value <= t3) return { idx: 2, pct: 50 + ((value - t2) / (t3 - t2)) * 25 };
@@ -85,26 +88,8 @@ const CARD_CSS = `
     min-width: 0;
   }
 
-  .graphs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
-
-  .graph-item {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .graph-lbl {
-    font-size: 12px;
-    color: var(--secondary-text-color, #aaa);
-    font-weight: 500;
-    margin-bottom: 2px;
-  }
-
   .graph-slot {
-    flex: 1;
+    width: 100%;
     min-height: 90px;
     overflow: hidden;
   }
@@ -286,16 +271,7 @@ class AirQualityCard extends HTMLElement {
             <div id="score-label" class="score-label"></div>
           </div>
           <div class="right">
-            <div class="graphs">
-              <div class="graph-item">
-                <div class="graph-lbl">Temperature</div>
-                <div id="temp-graph" class="graph-slot"></div>
-              </div>
-              <div class="graph-item">
-                <div class="graph-lbl">Humidity</div>
-                <div id="hum-graph" class="graph-slot"></div>
-              </div>
-            </div>
+            <div id="climate-graph" class="graph-slot"></div>
           </div>
         </div>
         <div class="tiles" id="tiles">
@@ -317,37 +293,38 @@ class AirQualityCard extends HTMLElement {
   }
 
   _setupGraphs() {
-    const graphConfig = (entityId) => ({
-      entities: [{ entity: entityId }],
+    const temp = this._config.temperature_entity;
+    const hum  = this._config.humidity_entity;
+    const entities = [];
+    if (temp) entities.push({ entity: temp, name: 'Temperature', color: '#ffb300' });
+    if (hum)  entities.push({ entity: hum,  name: 'Humidity',    color: '#42a5f5' });
+    if (!entities.length) return;
+
+    const slot = this.shadowRoot.getElementById('climate-graph');
+    if (!slot) return;
+
+    const cfg = {
+      entities,
       hours_to_show: 24,
       line_width: 2,
       font_size: 85,
-      show: { icon: false, name: false, state: true, legend: false },
-    });
-
-    const mount = (slotId, entityId) => {
-      if (!entityId) return;
-      const slot = this.shadowRoot.getElementById(slotId);
-      if (!slot) return;
-      const cfg = graphConfig(entityId);
-      const card = document.createElement('mini-graph-card');
-      slot.appendChild(card);
-      // Force synchronous upgrade if mini-graph-card is already registered,
-      // otherwise wait for it to be defined then upgrade.
-      const configure = () => {
-        customElements.upgrade(card);
-        try { card.setConfig(cfg); } catch (_) { card.config = cfg; }
-        if (this._hass) card.hass = this._hass;
-      };
-      if (customElements.get('mini-graph-card')) {
-        configure();
-      } else {
-        customElements.whenDefined('mini-graph-card').then(configure);
-      }
+      fill: false,
+      show: { icon: false, name: false, state: true, legend: entities.length > 1, labels: false },
     };
 
-    mount('temp-graph', this._config.temperature_entity);
-    mount('hum-graph',  this._config.humidity_entity);
+    const card = document.createElement('mini-graph-card');
+    slot.appendChild(card);
+
+    const configure = () => {
+      customElements.upgrade(card);
+      try { card.setConfig(cfg); } catch (_) { card.config = cfg; }
+      if (this._hass) card.hass = this._hass;
+    };
+    if (customElements.get('mini-graph-card')) {
+      configure();
+    } else {
+      customElements.whenDefined('mini-graph-card').then(configure);
+    }
   }
 
   _updateDisplay() {
@@ -375,9 +352,23 @@ class AirQualityCard extends HTMLElement {
       const showName = cfg.show_name !== false;
       if (showName) {
         let name = cfg.name || '';
-        if (!name && cfg.device_id && this._hass?.devices?.[cfg.device_id]) {
-          const dev = this._hass.devices[cfg.device_id];
-          name = dev.name_by_user || dev.name || '';
+        if (!name && this._hass) {
+          // Infer device_id from any configured entity (auto-discover no longer stores it)
+          const entityKeys = Object.keys(cfg).filter(k => k.endsWith('_entity'));
+          let deviceId = cfg.device_id || '';
+          if (!deviceId && this._hass.entities) {
+            for (const key of entityKeys) {
+              const eid = cfg[key];
+              if (eid && this._hass.entities[eid]?.device_id) {
+                deviceId = this._hass.entities[eid].device_id;
+                break;
+              }
+            }
+          }
+          if (deviceId && this._hass.devices?.[deviceId]) {
+            const dev = this._hass.devices[deviceId];
+            name = dev.name_by_user || dev.name || '';
+          }
         }
         nameEl.textContent = name;
         nameEl.style.display = name ? '' : 'none';
@@ -402,7 +393,7 @@ class AirQualityCard extends HTMLElement {
         return;
       }
 
-      const { idx, pct } = tileStatus(key, val);
+      const { idx, pct } = tileStatus(key, val, cfg);
       const sColor = STATUS_COLORS[idx];
 
       if (valEl) {
@@ -472,70 +463,41 @@ const EDITOR_FIELDS = [
   { key: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)' },
 ];
 
-const EDITOR_CSS = `
-  :host { display: block; }
-  .section-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--secondary-text-color);
-    margin: 16px 0 4px;
-  }
-  hr {
-    border: none;
-    border-top: 1px solid var(--divider-color, #e0e0e0);
-    margin: 16px 0;
-  }
-  ha-entity-picker { display: block; margin-bottom: 8px; }
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0;
-    margin-bottom: 4px;
-  }
-  .toggle-row span { font-size: 14px; color: var(--primary-text-color); }
-  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-  .toggle input { opacity: 0; width: 0; height: 0; }
-  .slider {
-    position: absolute; inset: 0;
-    background: var(--divider-color, #555);
-    border-radius: 20px; cursor: pointer; transition: 0.2s;
-  }
-  .slider:before {
-    content: ''; position: absolute;
-    width: 14px; height: 14px; left: 3px; bottom: 3px;
-    background: #fff; border-radius: 50%; transition: 0.2s;
-  }
-  input:checked + .slider { background: var(--primary-color, #03a9f4); }
-  input:checked + .slider:before { transform: translateX(16px); }
-  .text-input {
-    width: 100%;
-    background: var(--secondary-background-color, #2c2c2e);
-    border: 1px solid var(--divider-color, #555);
-    border-radius: 4px;
-    color: var(--primary-text-color, #fff);
-    font-size: 13px;
-    font-family: monospace;
-    padding: 8px 10px;
-    box-sizing: border-box;
-    outline: none;
-    margin-bottom: 8px;
-  }
-  .text-input:focus { border-color: var(--primary-color, #03a9f4); }
-  label.field-label {
-    display: block;
-    font-size: 12px;
-    color: var(--secondary-text-color);
-    margin-bottom: 3px;
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--secondary-text-color);
-    margin-bottom: 6px;
-  }
-`;
+// Expandable threshold sections — one per sensor, collapsed by default.
+// Each contains three number fields (Good/Moderate/High breakpoints).
+const THRESHOLD_SCHEMA = TILE_DEFS.map(({ key, label, unit }) => ({
+  type: 'expandable',
+  title: `${label} Thresholds`,
+  schema: [
+    { name: `${key}_t1`, label: `Good  (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+    { name: `${key}_t2`, label: `Moderate (≤ ${unit})`,  selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+    { name: `${key}_t3`, label: `High  (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+  ],
+}));
+
+// ha-form schema — same pattern used by Mushroom, Auto-entities, and all modern HACS cards.
+// hui-card-element-editor imports ha-form directly, so it is always defined by the time
+// our editor element is instantiated.
+const EDITOR_SCHEMA = [
+  { name: 'show_name',        label: 'Show device name',                                   selector: { boolean: {} } },
+  { name: 'name',             label: 'Name override (leave blank to use device name)',      selector: { text: {} } },
+  { name: 'aqi_entity',       label: 'AQI Entity (uses sensor value directly)',             selector: { entity: { domain: 'sensor' } } },
+  { name: 'pm25_entity',      label: 'PM2.5 Entity (µg/m³) — required if no AQI entity',  selector: { entity: { domain: 'sensor' } } },
+  { name: 'pm1_entity',       label: 'PM1.0 Entity (µg/m³)',                               selector: { entity: { domain: 'sensor' } } },
+  { name: 'pm4_entity',       label: 'PM4.0 Entity (µg/m³)',                               selector: { entity: { domain: 'sensor' } } },
+  { name: 'pm10_entity',      label: 'PM10 Entity (µg/m³)',                                selector: { entity: { domain: 'sensor' } } },
+  { name: 'voc_entity',       label: 'VOC Index Entity',                                   selector: { entity: { domain: 'sensor' } } },
+  { name: 'co2_entity',       label: 'CO₂ Entity (ppm)',                                   selector: { entity: { domain: 'sensor' } } },
+  { name: 'no2_entity',       label: 'NO₂ Entity (µg/m³)',                                 selector: { entity: { domain: 'sensor' } } },
+  { name: 'nh3_entity',       label: 'NH₃ Ammonia Entity (µg/m³)',                         selector: { entity: { domain: 'sensor' } } },
+  { name: 'ch4_entity',       label: 'CH₄ Methane Entity (ppm)',                           selector: { entity: { domain: 'sensor' } } },
+  { name: 'h2_entity',        label: 'H₂ Hydrogen Entity (ppm)',                           selector: { entity: { domain: 'sensor' } } },
+  { name: 'ethanol_entity',   label: 'C₂H₅OH Ethanol Entity (ppm)',                       selector: { entity: { domain: 'sensor' } } },
+  { name: 'rh_entity',        label: 'RH Relative Humidity tile (%)',                      selector: { entity: { domain: 'sensor' } } },
+  { name: 'temperature_entity', label: 'Temperature Entity',                               selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+  { name: 'humidity_entity',  label: 'Humidity Entity',                                    selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+  ...THRESHOLD_SCHEMA,
+];
 
 class AirQualityCardEditor extends HTMLElement {
   constructor() {
@@ -552,35 +514,14 @@ class AirQualityCardEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = { ...config };
-    if (this._built) this._syncValues();
+    if (this._built) this._updateForm();
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!this._built) this._build();
-    this._populateDatalist();
-  }
-
-  _autoDiscover(seedEntityId) {
-    if (!seedEntityId || !this._hass?.entities) return;
-    const seedEntry = this._hass.entities[seedEntityId];
-    const deviceId = seedEntry?.device_id;
-    if (!deviceId) return;
-
-    const discovered = {};
-    Object.values(this._hass.entities).forEach(entry => {
-      if (entry.device_id !== deviceId) return;
-      const state = this._hass.states[entry.entity_id];
-      const dc = state?.attributes?.device_class;
-      if (dc && DEVICE_CLASS_MAP[dc] && !discovered[DEVICE_CLASS_MAP[dc]]) {
-        discovered[DEVICE_CLASS_MAP[dc]] = entry.entity_id;
-      }
-    });
-
-    const updated = { ...this._config, device_id: deviceId, ...discovered };
-    this._config = updated;
-    this._syncValues();
-    this._fireConfigChanged(updated);
+    const form = this.shadowRoot.querySelector('ha-form');
+    if (form) form.hass = hass;
   }
 
   _fireConfigChanged(config) {
@@ -591,87 +532,51 @@ class AirQualityCardEditor extends HTMLElement {
     }));
   }
 
+  _formData() {
+    const data = {};
+    const fill = (items) => items.forEach(item => {
+      if (item.schema) {
+        fill(item.schema);
+      } else if (item.name) {
+        if (item.selector?.boolean) {
+          data[item.name] = this._config[item.name] ?? false;
+        } else if (item.selector?.number !== undefined) {
+          const m = item.name.match(/^(.+)_t([123])$/);
+          const def = m ? (THRESHOLDS[m[1]]?.[parseInt(m[2]) - 1] ?? 0) : 0;
+          data[item.name] = this._config[item.name] ?? def;
+        } else {
+          data[item.name] = this._config[item.name] ?? '';
+        }
+      }
+    });
+    fill(EDITOR_SCHEMA);
+    return data;
+  }
+
   _build() {
     if (this._built) return;
     this._built = true;
 
     const shadow = this.shadowRoot;
-    // Shared datalist — browser resolves list="" within the same shadow root
-    shadow.innerHTML = `
-      <style>${EDITOR_CSS}</style>
-      <datalist id="aq-entities"></datalist>
-      <div>
-        <div class="section-label">Card name</div>
-        <div class="toggle-row">
-          <span>Show device name</span>
-          <label class="toggle">
-            <input type="checkbox" id="show-name-toggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <label class="field-label">Name override (leave blank to use device name)</label>
-        <input type="text" class="text-input" id="name-input" placeholder="e.g. Living Room Air Quality">
-        <hr>
-        <div class="section-label">Auto-discover from device</div>
-        <div class="hint">Type any entity ID from your device — all others will be filled in automatically</div>
-        <input type="text" class="text-input" id="seed-input" list="aq-entities" placeholder="sensor.my_device_pm25" autocomplete="off">
-        <hr>
-        <div class="section-label">Entities</div>
-        ${EDITOR_FIELDS.map(f => `
-          <label class="field-label">${f.label}</label>
-          <input type="text" class="text-input" data-key="${f.key}" list="aq-entities" placeholder="sensor.…" autocomplete="off">
-        `).join('')}
-      </div>`;
+    shadow.innerHTML = `<style>:host{display:block} ha-form{display:block}</style>`;
 
-    shadow.querySelector('#show-name-toggle').addEventListener('change', ev => {
-      this._config = { ...this._config, show_name: ev.target.checked };
+    const form = document.createElement('ha-form');
+    form.schema = EDITOR_SCHEMA;
+    form.data = this._formData();
+    form.computeLabel = (s) => s.label;
+    if (this._hass) form.hass = this._hass;
+
+    form.addEventListener('value-changed', e => {
+      this._config = { ...this._config, ...e.detail.value };
       this._fireConfigChanged(this._config);
     });
 
-    shadow.querySelector('#name-input').addEventListener('change', ev => {
-      this._config = { ...this._config, name: ev.target.value };
-      this._fireConfigChanged(this._config);
-    });
-
-    shadow.querySelector('#seed-input').addEventListener('change', ev => {
-      const val = ev.target.value.trim();
-      if (val) this._autoDiscover(val);
-    });
-
-    shadow.querySelectorAll('input[data-key]').forEach(inp => {
-      inp.addEventListener('change', ev => {
-        this._config = { ...this._config, [inp.dataset.key]: ev.target.value.trim() };
-        this._fireConfigChanged(this._config);
-      });
-    });
-
-    this._populateDatalist();
-    this._syncValues();
+    shadow.appendChild(form);
   }
 
-  _populateDatalist() {
-    const dl = this.shadowRoot?.querySelector('#aq-entities');
-    if (!dl || !this._hass) return;
-    dl.innerHTML = Object.keys(this._hass.states)
-      .sort()
-      .map(id => `<option value="${id}">`)
-      .join('');
-  }
-
-  _syncValues() {
-    if (!this._built) return;
-    const shadow = this.shadowRoot;
-
-    const toggle = shadow.querySelector('#show-name-toggle');
-    if (toggle) toggle.checked = this._config.show_name !== false;
-
-    const nameInput = shadow.querySelector('#name-input');
-    if (nameInput) nameInput.value = this._config.name || '';
-
-    shadow.querySelectorAll('input[data-key]').forEach(inp => {
-      const val = this._config[inp.dataset.key] || '';
-      if (inp.value !== val) inp.value = val;
-    });
+  _updateForm() {
+    const form = this.shadowRoot.querySelector('ha-form');
+    if (form) form.data = this._formData();
   }
 }
 
