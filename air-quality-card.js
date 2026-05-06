@@ -30,12 +30,14 @@ function scoreInfo(score) {
   return SCORE_BANDS.find(b => score <= b.max);
 }
 
-// Returns 0–100 where 0 = clean air, 100 = very polluted (AQI convention)
+// Returns 0–100 where 0 = clean air, 100 = very polluted (AQI convention).
+// Null inputs are skipped so unavailable entities don't contribute a fake penalty.
 function computeScore(pm25, voc, co2) {
-  const pm25Penalty = Math.min(40, (pm25 / 35) * 40);
-  const vocPenalty  = Math.min(25, (voc  / 300) * 25);
-  const co2Penalty  = Math.min(35, Math.max(0, (co2 - 400) / 1600) * 35);
-  return Math.round(Math.min(100, pm25Penalty + vocPenalty + co2Penalty));
+  let total = 0;
+  if (pm25 !== null) total += Math.min(40, (pm25 / 35) * 40);
+  if (voc  !== null) total += Math.min(25, (voc  / 300) * 25);
+  if (co2  !== null) total += Math.min(35, Math.max(0, (co2 - 400) / 1600) * 35);
+  return Math.round(Math.min(100, total));
 }
 
 function tileStatus(key, value, cfg) {
@@ -114,6 +116,11 @@ const CARD_CSS = `
     padding: 8px 6px 6px;
     text-align: center;
     min-width: 0;
+    cursor: pointer;
+  }
+
+  .tile > * {
+    pointer-events: none;
   }
 
   .tile-lbl {
@@ -166,6 +173,30 @@ const CARD_CSS = `
     letter-spacing: 0.3px;
     margin-bottom: 10px;
   }
+
+  .climate-vals {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 2px;
+    justify-content: center;
+  }
+
+  .climate-val {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .climate-val-label {
+    font-size: 11px;
+    color: var(--secondary-text-color, #aaa);
+  }
+
+  .climate-val-num {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
 `;
 
 const TILE_DEFS = [
@@ -200,6 +231,7 @@ class AirQualityCard extends HTMLElement {
     return {
       device_id: '',
       show_name: true,
+      tile_tap_enabled: true,
       name: '',
       aqi_entity: '',
       pm25_entity: '',
@@ -271,12 +303,22 @@ class AirQualityCard extends HTMLElement {
             <div id="score-label" class="score-label"></div>
           </div>
           <div class="right">
+            <div class="climate-vals">
+              <div class="climate-val" id="temp-val" style="display:none">
+                <span class="climate-val-label" style="color:#ffb300">Temperature</span>
+                <span class="climate-val-num" id="temp-num"></span>
+              </div>
+              <div class="climate-val" id="hum-val" style="display:none">
+                <span class="climate-val-label" style="color:#42a5f5">Humidity</span>
+                <span class="climate-val-num" id="hum-num"></span>
+              </div>
+            </div>
             <div id="climate-graph" class="graph-slot"></div>
           </div>
         </div>
         <div class="tiles" id="tiles">
           ${TILE_DEFS.filter(t => this._config[t.cfgKey]).map(t => `
-            <div class="tile" data-key="${t.key}">
+            <div class="tile" data-key="${t.key}" data-entity="${this._config[t.cfgKey]}">
               <div class="tile-lbl">${t.label}</div>
               <div class="tile-val na" data-val>—</div>
               <div class="tile-status" data-status></div>
@@ -288,6 +330,18 @@ class AirQualityCard extends HTMLElement {
     `;
 
     this._setupGraphs();
+
+    shadow.querySelectorAll('.tile[data-entity]').forEach(tile => {
+      tile.addEventListener('click', () => {
+        if (this._config.tile_tap_enabled === false) return;
+        const entityId = tile.dataset.entity;
+        if (!entityId) return;
+        const ev = new Event('hass-more-info', { bubbles: true, composed: true });
+        ev.detail = { entityId };
+        this.dispatchEvent(ev);
+      });
+    });
+
     this._built = true;
     this._updateDisplay();
   }
@@ -309,7 +363,7 @@ class AirQualityCard extends HTMLElement {
       line_width: 2,
       font_size: 85,
       fill: false,
-      show: { icon: false, name: false, state: true, legend: entities.length > 1, labels: false },
+      show: { icon: false, name: false, state: false, legend: false, labels: false },
     };
 
     const card = document.createElement('mini-graph-card');
@@ -330,21 +384,42 @@ class AirQualityCard extends HTMLElement {
   _updateDisplay() {
     const cfg = this._config;
 
-    // Use native AQI entity if available, otherwise compute from pollutants
+    // Use native AQI entity if available, otherwise compute from pollutants.
+    // If no scoring input is available at all, show the gauge as unavailable.
     const nativeAqi = this._stateVal(cfg.aqi_entity);
-    const score = nativeAqi !== null
-      ? Math.round(Math.min(500, Math.max(0, nativeAqi)))
-      : computeScore(
-          this._stateVal(cfg.pm25_entity) ?? 0,
-          this._stateVal(cfg.voc_entity)  ?? 0,
-          this._stateVal(cfg.co2_entity)  ?? 400,
-        );
-    const { label, color } = scoreInfo(score);
-
-    this._renderGauge(score, color);
+    const pm25Val   = this._stateVal(cfg.pm25_entity);
+    const vocVal    = this._stateVal(cfg.voc_entity);
+    const co2Val    = this._stateVal(cfg.co2_entity);
+    const hasScore  = nativeAqi !== null || pm25Val !== null;
 
     const sl = this.shadowRoot.getElementById('score-label');
-    if (sl) { sl.textContent = label; sl.style.color = color; }
+    if (!hasScore) {
+      this._renderGauge(null, null);
+      if (sl) { sl.textContent = 'Unavailable'; sl.style.color = 'var(--secondary-text-color, #aaa)'; }
+    } else {
+      const score = nativeAqi !== null
+        ? Math.round(Math.min(500, Math.max(0, nativeAqi)))
+        : computeScore(pm25Val, vocVal, co2Val);
+      const { label, color } = scoreInfo(score);
+      this._renderGauge(score, color);
+      if (sl) { sl.textContent = label; sl.style.color = color; }
+    }
+
+    // Temperature / humidity current values
+    const tempV = this._stateVal(cfg.temperature_entity);
+    const humV  = this._stateVal(cfg.humidity_entity);
+    const tempEl = this.shadowRoot.getElementById('temp-val');
+    const humEl  = this.shadowRoot.getElementById('hum-val');
+    if (tempEl) {
+      tempEl.style.display = cfg.temperature_entity ? '' : 'none';
+      const n = this.shadowRoot.getElementById('temp-num');
+      if (n) n.textContent = tempV !== null ? `${tempV.toFixed(1)} °C` : '—';
+    }
+    if (humEl) {
+      humEl.style.display = cfg.humidity_entity ? '' : 'none';
+      const n = this.shadowRoot.getElementById('hum-num');
+      if (n) n.textContent = humV !== null ? `${humV.toFixed(1)} %` : '—';
+    }
 
     // Device name
     const nameEl = this.shadowRoot.getElementById('card-name');
@@ -388,7 +463,7 @@ class AirQualityCard extends HTMLElement {
 
       if (val === null) {
         if (valEl)    { valEl.textContent = '—'; valEl.classList.add('na'); }
-        if (statusEl) statusEl.textContent = '';
+        if (statusEl) { statusEl.textContent = 'Unavailable'; statusEl.style.color = 'var(--secondary-text-color, #aaa)'; }
         if (barEl)    { barEl.style.width = '0%'; barEl.style.background = '#3a3a3a'; }
         return;
       }
@@ -410,18 +485,21 @@ class AirQualityCard extends HTMLElement {
     if (!svg) return;
     const r = 48, cx = 60, cy = 60;
     const C = 2 * Math.PI * r;
-    // Ring fill represents pollution level: low fill = clean, full = very polluted
-    const filled = (score / 100) * C;
+    const unavailable = score === null;
+    const filled = unavailable ? 0 : (score / 100) * C;
+    const arcColor = unavailable ? 'var(--divider-color,#3a3a3a)' : color;
     svg.innerHTML = `
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
         stroke="var(--divider-color,#3a3a3a)" stroke-width="10"/>
+      ${unavailable ? '' : `
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
-        stroke="${color}" stroke-width="10"
+        stroke="${arcColor}" stroke-width="10"
         stroke-dasharray="${filled.toFixed(2)} ${C.toFixed(2)}"
         stroke-linecap="round"
-        transform="rotate(-90 ${cx} ${cy})"/>
+        transform="rotate(-90 ${cx} ${cy})"/>`}
       <text x="${cx}" y="${cy - 5}" text-anchor="middle"
-        fill="currentColor" font-size="28" font-weight="700">${score}</text>
+        fill="${unavailable ? 'var(--secondary-text-color,#aaa)' : 'currentColor'}"
+        font-size="${unavailable ? '20' : '28'}" font-weight="700">${unavailable ? '—' : score}</text>
       <text x="${cx}" y="${cy + 14}" text-anchor="middle"
         fill="var(--secondary-text-color,#aaa)" font-size="11">AQI</text>
     `;
@@ -463,40 +541,49 @@ const EDITOR_FIELDS = [
   { key: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)' },
 ];
 
-// Expandable threshold sections — one per sensor, collapsed by default.
-// Each contains three number fields (Good/Moderate/High breakpoints).
-const THRESHOLD_SCHEMA = TILE_DEFS.map(({ key, label, unit }) => ({
-  type: 'expandable',
-  title: `${label} Thresholds`,
-  schema: [
-    { name: `${key}_t1`, label: `Good  (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-    { name: `${key}_t2`, label: `Moderate (≤ ${unit})`,  selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-    { name: `${key}_t3`, label: `High  (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-  ],
-}));
+const TILE_ENTITY_LABELS = {
+  pm1_entity:     'PM1.0 Entity (µg/m³)',
+  pm25_entity:    'PM2.5 Entity (µg/m³) — required if no AQI entity',
+  pm4_entity:     'PM4.0 Entity (µg/m³)',
+  pm10_entity:    'PM10 Entity (µg/m³)',
+  voc_entity:     'VOC Index Entity',
+  co2_entity:     'CO₂ Entity (ppm)',
+  no2_entity:     'NO₂ Entity (µg/m³)',
+  nh3_entity:     'NH₃ Ammonia Entity (µg/m³)',
+  ch4_entity:     'CH₄ Methane Entity (ppm)',
+  h2_entity:      'H₂ Hydrogen Entity (ppm)',
+  ethanol_entity: 'C₂H₅OH Ethanol Entity (ppm)',
+  rh_entity:      'RH Relative Humidity tile (%)',
+};
 
-// ha-form schema — same pattern used by Mushroom, Auto-entities, and all modern HACS cards.
-// hui-card-element-editor imports ha-form directly, so it is always defined by the time
-// our editor element is instantiated.
+// Each pollutant entity picker is immediately followed by its collapsible threshold section.
+const TILE_ENTITY_SCHEMA = TILE_DEFS.flatMap(({ key, cfgKey, label, unit }) => [
+  { name: cfgKey, label: TILE_ENTITY_LABELS[cfgKey], selector: { entity: { domain: 'sensor' } } },
+  {
+    type: 'expandable',
+    title: `${label} Thresholds`,
+    schema: [
+      { name: `${key}_t1`, label: `Good (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${key}_t2`, label: `Moderate (≤ ${unit})`, selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${key}_t3`, label: `High (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+    ],
+  },
+]);
+
+// Boolean fields that should default to true when not yet set in config.
+const BOOLEAN_DEFAULTS = {
+  show_name:        true,
+  tile_tap_enabled: true,
+};
+
 const EDITOR_SCHEMA = [
-  { name: 'show_name',        label: 'Show device name',                                   selector: { boolean: {} } },
-  { name: 'name',             label: 'Name override (leave blank to use device name)',      selector: { text: {} } },
-  { name: 'aqi_entity',       label: 'AQI Entity (uses sensor value directly)',             selector: { entity: { domain: 'sensor' } } },
-  { name: 'pm25_entity',      label: 'PM2.5 Entity (µg/m³) — required if no AQI entity',  selector: { entity: { domain: 'sensor' } } },
-  { name: 'pm1_entity',       label: 'PM1.0 Entity (µg/m³)',                               selector: { entity: { domain: 'sensor' } } },
-  { name: 'pm4_entity',       label: 'PM4.0 Entity (µg/m³)',                               selector: { entity: { domain: 'sensor' } } },
-  { name: 'pm10_entity',      label: 'PM10 Entity (µg/m³)',                                selector: { entity: { domain: 'sensor' } } },
-  { name: 'voc_entity',       label: 'VOC Index Entity',                                   selector: { entity: { domain: 'sensor' } } },
-  { name: 'co2_entity',       label: 'CO₂ Entity (ppm)',                                   selector: { entity: { domain: 'sensor' } } },
-  { name: 'no2_entity',       label: 'NO₂ Entity (µg/m³)',                                 selector: { entity: { domain: 'sensor' } } },
-  { name: 'nh3_entity',       label: 'NH₃ Ammonia Entity (µg/m³)',                         selector: { entity: { domain: 'sensor' } } },
-  { name: 'ch4_entity',       label: 'CH₄ Methane Entity (ppm)',                           selector: { entity: { domain: 'sensor' } } },
-  { name: 'h2_entity',        label: 'H₂ Hydrogen Entity (ppm)',                           selector: { entity: { domain: 'sensor' } } },
-  { name: 'ethanol_entity',   label: 'C₂H₅OH Ethanol Entity (ppm)',                       selector: { entity: { domain: 'sensor' } } },
-  { name: 'rh_entity',        label: 'RH Relative Humidity tile (%)',                      selector: { entity: { domain: 'sensor' } } },
-  { name: 'temperature_entity', label: 'Temperature Entity',                               selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-  { name: 'humidity_entity',  label: 'Humidity Entity',                                    selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
-  ...THRESHOLD_SCHEMA,
+  { name: 'show_name',          label: 'Show device name',                               selector: { boolean: {} } },
+  { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                selector: { boolean: {} } },
+  { name: 'name',               label: 'Name override (leave blank to use device name)', selector: { text: {} } },
+  { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly)',         selector: { entity: { domain: 'sensor' } } },
+  ...TILE_ENTITY_SCHEMA,
+  { name: 'temperature_entity', label: 'Temperature Entity',                              selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+  { name: 'humidity_entity',    label: 'Humidity Entity',                                 selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
 ];
 
 class AirQualityCardEditor extends HTMLElement {
@@ -539,7 +626,7 @@ class AirQualityCardEditor extends HTMLElement {
         fill(item.schema);
       } else if (item.name) {
         if (item.selector?.boolean) {
-          data[item.name] = this._config[item.name] ?? false;
+          data[item.name] = this._config[item.name] ?? (BOOLEAN_DEFAULTS[item.name] ?? false);
         } else if (item.selector?.number !== undefined) {
           const m = item.name.match(/^(.+)_t([123])$/);
           const def = m ? (THRESHOLDS[m[1]]?.[parseInt(m[2]) - 1] ?? 0) : 0;
