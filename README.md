@@ -135,7 +135,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v0.5** — Combined temperature + humidity trend graph via mini-graph-card
 - [x] **v0.6** — Unavailable/unknown entity state handling; native AQI entity support; extended sensor support (NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH, PM4.0); per-card configurable thresholds; tap tile to open entity detail
 - [x] **v0.7** — Responsive tile layout; tile width cap; optional fixed column count; combined temperature/humidity graph with correct proportions at all card widths
-- [ ] **v1.0** — Stable release, HACS default repository submission
+- [x] **v1.0** — Pollutant label overrides; per-tile settings sections; stable release; HACS default repository submission
 
 ## Credits
 
