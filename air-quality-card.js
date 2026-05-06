@@ -317,7 +317,7 @@ class AirQualityCard extends HTMLElement {
         <div class="tiles" id="tiles" style="${this._config.columns ? `grid-template-columns:repeat(${this._config.columns},1fr)` : ''}">
           ${TILE_DEFS.filter(t => this._config[t.cfgKey]).map(t => `
             <div class="tile" data-key="${t.key}" data-entity="${this._config[t.cfgKey]}">
-              <div class="tile-lbl">${t.label}</div>
+              <div class="tile-lbl">${this._config[`${t.key}_name`] || t.label}</div>
               <div class="tile-val na" data-val>—</div>
               <div class="tile-status" data-status></div>
               <div class="bar-bg"><div class="bar" data-bar style="width:0%;background:#3a3a3a"></div></div>
@@ -560,11 +560,12 @@ const TILE_ENTITY_SCHEMA = TILE_DEFS.flatMap(({ key, cfgKey, label, unit }) => [
   { name: cfgKey, label: TILE_ENTITY_LABELS[cfgKey], selector: { entity: { domain: 'sensor' } } },
   {
     type: 'expandable',
-    title: `${label} Thresholds`,
+    title: `${label} Settings`,
     schema: [
-      { name: `${key}_t1`, label: `Good (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-      { name: `${key}_t2`, label: `Moderate (≤ ${unit})`, selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-      { name: `${key}_t3`, label: `High (≤ ${unit})`,     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${key}_name`, label: `Label override (default: ${label})`, selector: { text: {} } },
+      { name: `${key}_t1`,   label: `Good (≤ ${unit})`,                   selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${key}_t2`,   label: `Moderate (≤ ${unit})`,               selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${key}_t3`,   label: `High (≤ ${unit})`,                   selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
     ],
   },
 ]);

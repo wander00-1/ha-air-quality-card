@@ -2,6 +2,8 @@
 
 A HACS-compatible Lovelace card that displays a composite air quality score, pollutant breakdowns, and environmental trends — all driven by your own sensor entities.
 
+![Card preview](screenshots/card-preview.png)
+
 ## Features
 
 - Circular AQI gauge with color-coded score and Good / Moderate / Poor / Bad label
@@ -132,7 +134,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v0.4** — Visual config editor using `ha-form` with entity selectors
 - [x] **v0.5** — Combined temperature + humidity trend graph via mini-graph-card
 - [x] **v0.6** — Unavailable/unknown entity state handling; native AQI entity support; extended sensor support (NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH, PM4.0); per-card configurable thresholds; tap tile to open entity detail
-- [ ] **v0.7** — Responsive tile layout improvements
+- [x] **v0.7** — Responsive tile layout; tile width cap; optional fixed column count; combined temperature/humidity graph with correct proportions at all card widths
 - [ ] **v1.0** — Stable release, HACS default repository submission
 
 ## Credits
