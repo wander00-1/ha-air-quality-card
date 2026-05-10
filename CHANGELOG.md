@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.3] - 2026-05-10
+
+### Fixed
+- Native AQI entity now correctly shows Poor (not Bad) for values 101–200 — fix from 1.0.2 required a new release number for HACS to re-download the updated file
+
 ## [1.0.2] - 2026-05-10
 
 ### Fixed
