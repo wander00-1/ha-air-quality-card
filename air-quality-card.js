@@ -250,9 +250,6 @@ class AirQualityCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.aqi_entity && !config.pm25_entity) {
-      throw new Error('Either aqi_entity or pm25_entity is required');
-    }
     this._config = config;
     this._built = false;
     if (this._hass) this._buildAndUpdate();
