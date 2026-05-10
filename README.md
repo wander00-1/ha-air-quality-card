@@ -90,7 +90,20 @@ tile_tap_enabled: true
 
 ## Scoring
 
-The AQI score runs from **0 (clean) to 100 (very polluted)**. Penalties are accumulated from available sensors; unavailable sensors are skipped rather than assumed clean.
+### Native AQI entity
+
+If `aqi_entity` is configured, the sensor value is used directly and displayed as-is in the gauge. This supports any scale — including the US AQI (0–500). The gauge arc fills proportionally up to a maximum of 100, so values above 100 show a full circle.
+
+| Score | Status |
+|:-----:|--------|
+| 0–50 | Good |
+| 51–100 | Moderate |
+| 101–200 | Poor |
+| > 200 | Bad |
+
+### Computed score
+
+If no `aqi_entity` is provided, a score from **0 (clean) to 100 (very polluted)** is computed from available sensors. Unavailable sensors are skipped rather than assumed clean.
 
 | Pollutant | Max Penalty | Reference |
 |-----------|:-----------:|-----------|

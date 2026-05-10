@@ -1,0 +1,26 @@
+# Changelog
+
+## [1.0.2] - 2026-05-10
+
+### Fixed
+- Configuration error when native AQI entity returns values above 100 (US AQI scale goes to 500) — `scoreInfo` now falls back to the Bad band instead of crashing
+- Gauge arc capped at 100% fill so it does not overflow the circle for high AQI values
+- `setConfig` ignores null config calls sent by some HA versions during the card lifecycle
+
+## [1.0.1] - 2026-05-10
+
+### Fixed
+- Card renders as blank space instead of showing content after upgrading or creating a new card — removed the hard validation throw from `setConfig` so the card renders gracefully with an unavailable gauge when no scoring entities are configured yet
+
+## [1.0.0] - 2026-05-06
+
+### Added
+- Circular AQI gauge with computed score (PM2.5, VOC, CO₂) or native AQI entity
+- Pollutant tiles: PM1, PM2.5, PM4, PM10, VOC, CO₂, NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH
+- Per-tile configurable thresholds and label overrides via the visual editor
+- Combined temperature and humidity trend graph via mini-graph-card
+- Tap any tile to open entity detail popup
+- Unavailable/unknown entity state handling — gauge and tiles indicate offline sensors
+- Responsive tile grid with width cap
+- ha-form visual config editor — no YAML required
+- MIT license
