@@ -15,7 +15,7 @@ const THRESHOLDS = {
   rh:     [60,  70,   80],    // % (above-comfort thresholds)
 };
 
-// AQI convention: low = clean, high = polluted
+// Bands for the computed 0–100 score
 const SCORE_BANDS = [
   { max: 25,  label: 'Good',     color: '#4caf50' },
   { max: 50,  label: 'Moderate', color: '#f9a825' },
@@ -23,11 +23,19 @@ const SCORE_BANDS = [
   { max: 100, label: 'Bad',      color: '#c62828' },
 ];
 
+// Bands for a native AQI entity (0–500 US AQI scale)
+const AQI_BANDS = [
+  { max: 50,  label: 'Good',     color: '#4caf50' },
+  { max: 100, label: 'Moderate', color: '#f9a825' },
+  { max: 200, label: 'Poor',     color: '#ef6c00' },
+  { max: 500, label: 'Bad',      color: '#c62828' },
+];
+
 const STATUS_LABELS = ['Good', 'Moderate', 'High', 'Very High'];
 const STATUS_COLORS = ['#4caf50', '#f9a825', '#ef6c00', '#c62828'];
 
-function scoreInfo(score) {
-  return SCORE_BANDS.find(b => score <= b.max) ?? SCORE_BANDS[SCORE_BANDS.length - 1];
+function scoreInfo(score, bands) {
+  return bands.find(b => score <= b.max) ?? bands[bands.length - 1];
 }
 
 // Returns 0–100 where 0 = clean air, 100 = very polluted (AQI convention).
@@ -394,10 +402,11 @@ class AirQualityCard extends HTMLElement {
       this._renderGauge(null, null);
       if (sl) { sl.textContent = 'Unavailable'; sl.style.color = 'var(--secondary-text-color, #aaa)'; }
     } else {
-      const score = nativeAqi !== null
+      const useNative = nativeAqi !== null;
+      const score = useNative
         ? Math.round(Math.min(500, Math.max(0, nativeAqi)))
         : computeScore(pm25Val, vocVal, co2Val);
-      const { label, color } = scoreInfo(score);
+      const { label, color } = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
       this._renderGauge(score, color);
       if (sl) { sl.textContent = label; sl.style.color = color; }
     }
