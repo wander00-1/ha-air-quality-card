@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-05-11
+
+### Added
+- `use_chemical_names` toggle in the visual editor — switches tile labels from chemical symbols (CO₂, NH₃) to full names (Carbon Dioxide, Ammonia). Per-tile label overrides still take priority.
+
 ## [1.0.3] - 2026-05-10
 
 ### Fixed

@@ -205,6 +205,21 @@ const CARD_CSS = `
   }
 `;
 
+const CHEMICAL_NAMES = {
+  pm1:     'Particulate 1.0µm',
+  pm25:    'Particulate 2.5µm',
+  pm4:     'Particulate 4.0µm',
+  pm10:    'Particulate 10µm',
+  voc:     'Organics (VOC)',
+  co2:     'Carbon Dioxide',
+  no2:     'Nitrogen Dioxide',
+  nh3:     'Ammonia',
+  ch4:     'Methane',
+  h2:      'Hydrogen',
+  ethanol: 'Ethanol',
+  rh:      'Relative Humidity',
+};
+
 const TILE_DEFS = [
   { key: 'pm1',     cfgKey: 'pm1_entity',     label: 'PM1.0',    unit: 'µg/m³' },
   { key: 'pm25',    cfgKey: 'pm25_entity',    label: 'PM2.5',    unit: 'µg/m³' },
@@ -323,7 +338,7 @@ class AirQualityCard extends HTMLElement {
         <div class="tiles" id="tiles" style="${this._config.columns ? `grid-template-columns:repeat(${this._config.columns},1fr)` : ''}">
           ${TILE_DEFS.filter(t => this._config[t.cfgKey]).map(t => `
             <div class="tile" data-key="${t.key}" data-entity="${this._config[t.cfgKey]}">
-              <div class="tile-lbl">${this._config[`${t.key}_name`] || t.label}</div>
+              <div class="tile-lbl">${this._config[`${t.key}_name`] || (this._config.use_chemical_names ? CHEMICAL_NAMES[t.key] : t.label)}</div>
               <div class="tile-val na" data-val>—</div>
               <div class="tile-status" data-status></div>
               <div class="bar-bg"><div class="bar" data-bar style="width:0%;background:#3a3a3a"></div></div>
@@ -579,13 +594,15 @@ const TILE_ENTITY_SCHEMA = TILE_DEFS.flatMap(({ key, cfgKey, label, unit }) => [
 
 // Boolean fields that should default to true when not yet set in config.
 const BOOLEAN_DEFAULTS = {
-  show_name:        true,
-  tile_tap_enabled: true,
+  show_name:          true,
+  tile_tap_enabled:   true,
+  use_chemical_names: false,
 };
 
 const EDITOR_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                               selector: { boolean: {} } },
   { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                selector: { boolean: {} } },
+  { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)', selector: { text: {} } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',             selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
   { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly)',         selector: { entity: { domain: 'sensor' } } },

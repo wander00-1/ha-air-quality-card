@@ -87,6 +87,7 @@ tile_tap_enabled: true
 | `show_name` | `true` | Show device name above the card |
 | `name` | — | Override the device name with a custom string |
 | `tile_tap_enabled` | `true` | Tap a pollutant tile to open its entity detail popup |
+| `use_chemical_names` | `false` | Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂) |
 
 ## Scoring
 
