@@ -27,7 +27,7 @@ const STATUS_LABELS = ['Good', 'Moderate', 'High', 'Very High'];
 const STATUS_COLORS = ['#4caf50', '#f9a825', '#ef6c00', '#c62828'];
 
 function scoreInfo(score) {
-  return SCORE_BANDS.find(b => score <= b.max);
+  return SCORE_BANDS.find(b => score <= b.max) ?? SCORE_BANDS[SCORE_BANDS.length - 1];
 }
 
 // Returns 0–100 where 0 = clean air, 100 = very polluted (AQI convention).
@@ -250,6 +250,7 @@ class AirQualityCard extends HTMLElement {
   }
 
   setConfig(config) {
+    if (!config) return;
     this._config = config;
     this._built = false;
     if (this._hass) this._buildAndUpdate();
@@ -482,7 +483,7 @@ class AirQualityCard extends HTMLElement {
     const r = 48, cx = 60, cy = 60;
     const C = 2 * Math.PI * r;
     const unavailable = score === null;
-    const filled = unavailable ? 0 : (score / 100) * C;
+    const filled = unavailable ? 0 : Math.min((score / 100) * C, C);
     const arcColor = unavailable ? 'var(--divider-color,#3a3a3a)' : color;
     svg.innerHTML = `
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
