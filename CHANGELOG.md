@@ -6,6 +6,7 @@
 - Configuration error when native AQI entity returns values above 100 (US AQI scale goes to 500) — `scoreInfo` now falls back to the Bad band instead of crashing
 - Gauge arc capped at 100% fill so it does not overflow the circle for high AQI values
 - `setConfig` ignores null config calls sent by some HA versions during the card lifecycle
+- Native AQI entity now uses correct US AQI scale bands (0–50 Good, 51–100 Moderate, 101–200 Poor, >200 Bad) instead of the computed score bands
 
 ## [1.0.1] - 2026-05-10
 
