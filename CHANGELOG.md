@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.5] - 2026-06-28
+
+### Added
+- SO₂ (Sulphur Dioxide), O₃ (Ozone), and CO (Carbon Monoxide) pollutant tiles with EPA AQI default thresholds — all configurable via the visual editor (closes #1)
+
 ## [1.0.4] - 2026-05-11
 
 ### Added

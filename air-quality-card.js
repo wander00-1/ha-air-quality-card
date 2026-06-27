@@ -13,6 +13,9 @@ const THRESHOLDS = {
   h2:     [500, 2000, 10000], // ppm
   ethanol:[100, 500,  1000],  // ppm
   rh:     [60,  70,   80],    // % (above-comfort thresholds)
+  so2:    [35,  75,   185],   // ppb (EPA AQI breakpoints)
+  o3:     [54,  70,   85],    // ppb (EPA 8-hour AQI breakpoints)
+  co:     [4.4, 9.4,  12.4], // ppm (EPA AQI breakpoints)
 };
 
 // Bands for the computed 0–100 score
@@ -218,6 +221,9 @@ const CHEMICAL_NAMES = {
   h2:      'Hydrogen',
   ethanol: 'Ethanol',
   rh:      'Relative Humidity',
+  so2:     'Sulphur Dioxide',
+  o3:      'Ozone',
+  co:      'Carbon Monoxide',
 };
 
 const TILE_DEFS = [
@@ -233,6 +239,9 @@ const TILE_DEFS = [
   { key: 'h2',      cfgKey: 'h2_entity',      label: 'H₂',       unit: 'ppm'   },
   { key: 'ethanol', cfgKey: 'ethanol_entity', label: 'C₂H₅OH',   unit: 'ppm'   },
   { key: 'rh',      cfgKey: 'rh_entity',      label: 'RH',       unit: '%'     },
+  { key: 'so2',    cfgKey: 'so2_entity',    label: 'SO₂',      unit: 'ppb'   },
+  { key: 'o3',     cfgKey: 'o3_entity',     label: 'O₃',       unit: 'ppb'   },
+  { key: 'co',     cfgKey: 'co_entity',     label: 'CO',       unit: 'ppm'   },
 ];
 
 class AirQualityCard extends HTMLElement {
@@ -575,6 +584,9 @@ const TILE_ENTITY_LABELS = {
   h2_entity:      'H₂ Hydrogen Entity (ppm)',
   ethanol_entity: 'C₂H₅OH Ethanol Entity (ppm)',
   rh_entity:      'RH Relative Humidity tile (%)',
+  so2_entity:     'SO₂ Sulphur Dioxide Entity (ppb)',
+  o3_entity:      'O₃ Ozone Entity (ppb)',
+  co_entity:      'CO Carbon Monoxide Entity (ppm)',
 };
 
 // Each pollutant entity picker is immediately followed by its collapsible threshold section.
