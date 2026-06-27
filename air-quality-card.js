@@ -126,61 +126,10 @@ const CARD_CSS = `
     text-align: center;
     min-width: 0;
     cursor: pointer;
-    position: relative;
   }
 
   .tile > * {
     pointer-events: none;
-  }
-
-  .tile.dragging {
-    opacity: 0.3;
-  }
-
-  .tile.drag-over {
-    outline: 2px dashed var(--primary-color, #03a9f4);
-    outline-offset: -2px;
-  }
-
-  .tile-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 2px;
-    margin-top: 5px;
-    opacity: 0;
-    transition: opacity 0.15s;
-    pointer-events: auto;
-  }
-
-  .tile:hover .tile-controls {
-    opacity: 1;
-  }
-
-  .tile-btn {
-    background: none;
-    border: none;
-    color: var(--secondary-text-color, #aaa);
-    cursor: pointer;
-    font-size: 10px;
-    padding: 1px 4px;
-    border-radius: 3px;
-    line-height: 1;
-    pointer-events: auto;
-  }
-
-  .tile-btn:hover {
-    color: var(--primary-text-color, #fff);
-    background: var(--divider-color, #3a3a3a);
-  }
-
-  .tile-grip {
-    color: var(--secondary-text-color, #aaa);
-    font-size: 13px;
-    cursor: grab;
-    padding: 0 3px;
-    pointer-events: auto;
-    user-select: none;
   }
 
   .tile-lbl {
@@ -402,11 +351,6 @@ class AirQualityCard extends HTMLElement {
               <div class="tile-val na" data-val>—</div>
               <div class="tile-status" data-status></div>
               <div class="bar-bg"><div class="bar" data-bar style="width:0%;background:#3a3a3a"></div></div>
-              <div class="tile-controls">
-                <button class="tile-btn" data-dir="up" title="Move left">▲</button>
-                <span class="tile-grip" title="Drag to reorder">⠿</span>
-                <button class="tile-btn" data-dir="down" title="Move right">▼</button>
-              </div>
             </div>
           `).join('')}
         </div>
@@ -426,7 +370,6 @@ class AirQualityCard extends HTMLElement {
       });
     });
 
-    this._setupTileReorder(shadow);
     this._built = true;
     this._updateDisplay();
   }
@@ -437,74 +380,6 @@ class AirQualityCard extends HTMLElement {
     const inOrder = order.map(k => configured.find(t => t.key === k)).filter(Boolean);
     const rest = configured.filter(t => !order.includes(t.key));
     return [...inOrder, ...rest];
-  }
-
-  _saveTileOrder(order) {
-    this._config = { ...this._config, tile_order: order };
-    this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config: this._config },
-      bubbles: true,
-      composed: true,
-    }));
-    this._built = false;
-    this._buildAndUpdate();
-  }
-
-  _setupTileReorder(shadow) {
-    const tiles = [...shadow.querySelectorAll('.tile[data-key]')];
-    let dragSrc = null;
-
-    tiles.forEach(tile => {
-      const grip = tile.querySelector('.tile-grip');
-
-      grip.addEventListener('mousedown', () => { tile.draggable = true; });
-      tile.addEventListener('dragend', () => {
-        tile.draggable = false;
-        dragSrc = null;
-        tile.classList.remove('dragging');
-        tiles.forEach(t => t.classList.remove('drag-over'));
-      });
-
-      tile.addEventListener('dragstart', (e) => {
-        dragSrc = tile.dataset.key;
-        e.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => tile.classList.add('dragging'), 0);
-      });
-
-      tile.addEventListener('dragover', (e) => { e.preventDefault(); });
-
-      tile.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        if (dragSrc && dragSrc !== tile.dataset.key) tile.classList.add('drag-over');
-      });
-
-      tile.addEventListener('dragleave', () => tile.classList.remove('drag-over'));
-
-      tile.addEventListener('drop', (e) => {
-        e.preventDefault();
-        tile.classList.remove('drag-over');
-        if (!dragSrc || dragSrc === tile.dataset.key) return;
-        const order = this._sortedTiles().map(t => t.key);
-        const from = order.indexOf(dragSrc);
-        const to   = order.indexOf(tile.dataset.key);
-        if (from === -1 || to === -1) return;
-        order.splice(from, 1);
-        order.splice(to, 0, dragSrc);
-        this._saveTileOrder(order);
-      });
-
-      tile.querySelectorAll('.tile-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const order = this._sortedTiles().map(t => t.key);
-          const idx = order.indexOf(tile.dataset.key);
-          const next = btn.dataset.dir === 'up' ? idx - 1 : idx + 1;
-          if (next < 0 || next >= order.length) return;
-          [order[idx], order[next]] = [order[next], order[idx]];
-          this._saveTileOrder(order);
-        });
-      });
-    });
   }
 
   _setupGraphs() {
@@ -815,7 +690,20 @@ class AirQualityCardEditor extends HTMLElement {
     this._built = true;
 
     const shadow = this.shadowRoot;
-    shadow.innerHTML = `<style>:host{display:block} ha-form{display:block}</style>`;
+    shadow.innerHTML = `<style>
+      :host { display: block; }
+      ha-form { display: block; }
+      .tile-order-section { padding: 8px 16px 4px; }
+      .tile-order-header { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+      .tile-order-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; margin-bottom: 4px; background: var(--secondary-background-color); cursor: default; }
+      .tile-order-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
+      .tile-order-row.dragging { opacity: 0.3; }
+      .tile-order-grip { color: var(--secondary-text-color); font-size: 16px; cursor: grab; user-select: none; flex-shrink: 0; }
+      .tile-order-label { flex: 1; font-size: 13px; }
+      .tile-order-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+      .tile-order-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 10px; padding: 1px 4px; border-radius: 3px; line-height: 1; }
+      .tile-order-btn:hover { color: var(--primary-text-color); background: var(--divider-color, #3a3a3a); }
+    </style>`;
 
     const form = document.createElement('ha-form');
     form.schema = EDITOR_SCHEMA;
@@ -826,14 +714,113 @@ class AirQualityCardEditor extends HTMLElement {
     form.addEventListener('value-changed', e => {
       this._config = { ...this._config, ...e.detail.value };
       this._fireConfigChanged(this._config);
+      this._updateTileOrderSection();
     });
 
     shadow.appendChild(form);
+    shadow.appendChild(this._buildTileOrderSection());
+  }
+
+  _sortedEditorTiles() {
+    const configured = TILE_DEFS.filter(t => this._config[t.cfgKey]);
+    const order = this._config.tile_order || [];
+    const inOrder = order.map(k => configured.find(t => t.key === k)).filter(Boolean);
+    const rest = configured.filter(t => !order.includes(t.key));
+    return [...inOrder, ...rest];
+  }
+
+  _saveTileOrder(order) {
+    this._config = { ...this._config, tile_order: order };
+    this._fireConfigChanged(this._config);
+    this._updateTileOrderSection();
+  }
+
+  _buildTileOrderSection() {
+    const section = document.createElement('div');
+    section.className = 'tile-order-section';
+    const sorted = this._sortedEditorTiles();
+
+    if (sorted.length < 2) {
+      section.style.display = 'none';
+      return section;
+    }
+
+    section.innerHTML = `
+      <div class="tile-order-header">Tile order</div>
+      ${sorted.map(t => `
+        <div class="tile-order-row" data-key="${t.key}">
+          <span class="tile-order-grip">⠿</span>
+          <span class="tile-order-label">${this._config[`${t.key}_name`] || t.label}</span>
+          <div class="tile-order-btns">
+            <button class="tile-order-btn" data-dir="up">▲</button>
+            <button class="tile-order-btn" data-dir="down">▼</button>
+          </div>
+        </div>
+      `).join('')}
+    `;
+
+    const rows = [...section.querySelectorAll('.tile-order-row')];
+    let dragSrc = null;
+
+    rows.forEach(row => {
+      const grip = row.querySelector('.tile-order-grip');
+      grip.addEventListener('mousedown', () => { row.draggable = true; });
+      row.addEventListener('dragend', () => {
+        row.draggable = false;
+        dragSrc = null;
+        rows.forEach(r => r.classList.remove('dragging', 'drag-over'));
+      });
+      row.addEventListener('dragstart', (e) => {
+        dragSrc = row.dataset.key;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => row.classList.add('dragging'), 0);
+      });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); });
+      row.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (dragSrc && dragSrc !== row.dataset.key) row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        if (!dragSrc || dragSrc === row.dataset.key) return;
+        const order = this._sortedEditorTiles().map(t => t.key);
+        const from = order.indexOf(dragSrc);
+        const to   = order.indexOf(row.dataset.key);
+        if (from === -1 || to === -1) return;
+        order.splice(from, 1);
+        order.splice(to, 0, dragSrc);
+        this._saveTileOrder(order);
+      });
+
+      row.querySelectorAll('.tile-order-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const order = this._sortedEditorTiles().map(t => t.key);
+          const idx  = order.indexOf(row.dataset.key);
+          const next = btn.dataset.dir === 'up' ? idx - 1 : idx + 1;
+          if (next < 0 || next >= order.length) return;
+          [order[idx], order[next]] = [order[next], order[idx]];
+          this._saveTileOrder(order);
+        });
+      });
+    });
+
+    return section;
+  }
+
+  _updateTileOrderSection() {
+    const shadow = this.shadowRoot;
+    const old = shadow.querySelector('.tile-order-section');
+    const next = this._buildTileOrderSection();
+    if (old) shadow.replaceChild(next, old);
+    else shadow.appendChild(next);
   }
 
   _updateForm() {
     const form = this.shadowRoot.querySelector('ha-form');
     if (form) form.data = this._formData();
+    this._updateTileOrderSection();
   }
 }
 
