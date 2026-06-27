@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6] - 2026-06-28
+
+### Added
+- Drag-and-drop tile reordering — grab the ⠿ handle on any tile and drop it into position
+- ▲▼ buttons on each tile (visible on hover) to nudge tiles one step earlier or later
+- Order is saved to card config automatically
+
 ## [1.0.5] - 2026-06-28
 
 ### Added

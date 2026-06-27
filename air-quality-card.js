@@ -126,10 +126,61 @@ const CARD_CSS = `
     text-align: center;
     min-width: 0;
     cursor: pointer;
+    position: relative;
   }
 
   .tile > * {
     pointer-events: none;
+  }
+
+  .tile.dragging {
+    opacity: 0.3;
+  }
+
+  .tile.drag-over {
+    outline: 2px dashed var(--primary-color, #03a9f4);
+    outline-offset: -2px;
+  }
+
+  .tile-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    margin-top: 5px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto;
+  }
+
+  .tile:hover .tile-controls {
+    opacity: 1;
+  }
+
+  .tile-btn {
+    background: none;
+    border: none;
+    color: var(--secondary-text-color, #aaa);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    line-height: 1;
+    pointer-events: auto;
+  }
+
+  .tile-btn:hover {
+    color: var(--primary-text-color, #fff);
+    background: var(--divider-color, #3a3a3a);
+  }
+
+  .tile-grip {
+    color: var(--secondary-text-color, #aaa);
+    font-size: 13px;
+    cursor: grab;
+    padding: 0 3px;
+    pointer-events: auto;
+    user-select: none;
   }
 
   .tile-lbl {
@@ -345,12 +396,17 @@ class AirQualityCard extends HTMLElement {
           </div>
         </div>
         <div class="tiles" id="tiles" style="${this._config.columns ? `grid-template-columns:repeat(${this._config.columns},1fr)` : ''}">
-          ${TILE_DEFS.filter(t => this._config[t.cfgKey]).map(t => `
+          ${this._sortedTiles().map(t => `
             <div class="tile" data-key="${t.key}" data-entity="${this._config[t.cfgKey]}">
               <div class="tile-lbl">${this._config[`${t.key}_name`] || (this._config.use_chemical_names ? CHEMICAL_NAMES[t.key] : t.label)}</div>
               <div class="tile-val na" data-val>—</div>
               <div class="tile-status" data-status></div>
               <div class="bar-bg"><div class="bar" data-bar style="width:0%;background:#3a3a3a"></div></div>
+              <div class="tile-controls">
+                <button class="tile-btn" data-dir="up" title="Move left">▲</button>
+                <span class="tile-grip" title="Drag to reorder">⠿</span>
+                <button class="tile-btn" data-dir="down" title="Move right">▼</button>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -370,8 +426,85 @@ class AirQualityCard extends HTMLElement {
       });
     });
 
+    this._setupTileReorder(shadow);
     this._built = true;
     this._updateDisplay();
+  }
+
+  _sortedTiles() {
+    const configured = TILE_DEFS.filter(t => this._config[t.cfgKey]);
+    const order = this._config.tile_order || [];
+    const inOrder = order.map(k => configured.find(t => t.key === k)).filter(Boolean);
+    const rest = configured.filter(t => !order.includes(t.key));
+    return [...inOrder, ...rest];
+  }
+
+  _saveTileOrder(order) {
+    this._config = { ...this._config, tile_order: order };
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: this._config },
+      bubbles: true,
+      composed: true,
+    }));
+    this._built = false;
+    this._buildAndUpdate();
+  }
+
+  _setupTileReorder(shadow) {
+    const tiles = [...shadow.querySelectorAll('.tile[data-key]')];
+    let dragSrc = null;
+
+    tiles.forEach(tile => {
+      const grip = tile.querySelector('.tile-grip');
+
+      grip.addEventListener('mousedown', () => { tile.draggable = true; });
+      tile.addEventListener('dragend', () => {
+        tile.draggable = false;
+        dragSrc = null;
+        tile.classList.remove('dragging');
+        tiles.forEach(t => t.classList.remove('drag-over'));
+      });
+
+      tile.addEventListener('dragstart', (e) => {
+        dragSrc = tile.dataset.key;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => tile.classList.add('dragging'), 0);
+      });
+
+      tile.addEventListener('dragover', (e) => { e.preventDefault(); });
+
+      tile.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (dragSrc && dragSrc !== tile.dataset.key) tile.classList.add('drag-over');
+      });
+
+      tile.addEventListener('dragleave', () => tile.classList.remove('drag-over'));
+
+      tile.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tile.classList.remove('drag-over');
+        if (!dragSrc || dragSrc === tile.dataset.key) return;
+        const order = this._sortedTiles().map(t => t.key);
+        const from = order.indexOf(dragSrc);
+        const to   = order.indexOf(tile.dataset.key);
+        if (from === -1 || to === -1) return;
+        order.splice(from, 1);
+        order.splice(to, 0, dragSrc);
+        this._saveTileOrder(order);
+      });
+
+      tile.querySelectorAll('.tile-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const order = this._sortedTiles().map(t => t.key);
+          const idx = order.indexOf(tile.dataset.key);
+          const next = btn.dataset.dir === 'up' ? idx - 1 : idx + 1;
+          if (next < 0 || next >= order.length) return;
+          [order[idx], order[next]] = [order[next], order[idx]];
+          this._saveTileOrder(order);
+        });
+      });
+    });
   }
 
   _setupGraphs() {
