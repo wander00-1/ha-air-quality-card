@@ -213,6 +213,7 @@ const EDITOR_CSS = `
   .tile-btn[disabled] { opacity: 0.3; cursor: default; }
   .tile-btn.active { color: var(--primary-color, #03a9f4); }
   .tile-btn.remove { color: var(--error-color, #c62828); }
+  .tile-btn.settings { font-size: 15px; padding: 2px 5px; }
   .tile-settings { border-top: 1px solid var(--divider-color, #3a3a3a); padding: 4px 0; }
   .add-tile-row { margin-top: 8px; }
   .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, #2c2c2e); color: var(--primary-text-color, #fff); border: 1px solid var(--divider-color, #3a3a3a); font-size: 13px; cursor: pointer; }
@@ -562,9 +563,9 @@ class AirQualityCardEditor extends LitElement {
               @click=${() => this._moveTile(t.key, -1)} title="Move up">▲</button>
             <button class="tile-btn" ?disabled=${idx === total - 1}
               @click=${() => this._moveTile(t.key, 1)} title="Move down">▼</button>
-            <button class="tile-btn ${isExpanded ? 'active' : ''}"
+            <button class="tile-btn settings ${isExpanded ? 'active' : ''}"
               @click=${() => { this._expandedTile = isExpanded ? null : t.key; }}
-              title="Settings">▸</button>
+              title="Threshold &amp; label settings">⚙</button>
             <button class="tile-btn remove"
               @click=${() => this._removeTile(t)} title="Remove tile">✕</button>
           </div>
