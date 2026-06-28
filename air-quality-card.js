@@ -114,7 +114,7 @@ const CHEMICAL_NAMES = {
   pm25:    'Particulate 2.5µm',
   pm4:     'Particulate 4.0µm',
   pm10:    'Particulate 10µm',
-  voc:     'Organics (VOC)',
+  voc:     'Organics',
   co2:     'Carbon Dioxide',
   no2:     'Nitrogen Dioxide',
   nh3:     'Ammonia',
@@ -633,7 +633,7 @@ class AirQualityCardEditor extends LitElement {
           <div class="add-tile-row">
             <select class="add-tile-select" @change=${(e) => this._addTile(e)}>
               <option value="">＋ Add tile</option>
-              ${unconfigured.map(t => html`<option value="${t.key}">${t.label} (${t.unit})</option>`)}
+              ${unconfigured.map(t => html`<option value="${t.key}">${CHEMICAL_NAMES[t.key]} (${t.label}, ${t.unit})</option>`)}
             </select>
           </div>` : ''}
       </div>
