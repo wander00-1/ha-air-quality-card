@@ -319,13 +319,16 @@ class AirQualityCard extends LitElement {
     const r = 48, cx = 60, cy = 60, C = 2 * Math.PI * r;
     const unavail = score === null;
     const filled = unavail ? 0 : Math.min((score / 100) * C, C);
+    // Keep this as a flat template — nesting html`<circle>` inside SVG creates it
+    // in HTML namespace (not SVG), making it invisible.
     return html`
       <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--divider-color,#3a3a3a)" stroke-width="10"/>
-        ${!unavail ? html`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
           stroke="${color}" stroke-width="10"
           stroke-dasharray="${filled.toFixed(2)} ${C.toFixed(2)}"
-          stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"/>` : ''}
+          stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"
+          opacity="${unavail ? 0 : 1}"/>
         <text x="${cx}" y="${cy - 5}" text-anchor="middle"
           fill="${unavail ? 'var(--secondary-text-color,#aaa)' : 'currentColor'}"
           font-size="${unavail ? 20 : 28}" font-weight="700">${unavail ? '—' : score}</text>
