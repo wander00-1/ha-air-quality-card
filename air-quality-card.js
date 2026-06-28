@@ -1,12 +1,26 @@
 'use strict';
 
-// Defer until HA's root element is defined so customElements.get() is guaranteed
-// to return a class (not undefined), preventing Object.getPrototypeOf crashes
-// when the Lovelace resource script runs before HA finishes booting.
-customElements.whenDefined('home-assistant-main').then(() => {
+(async () => {
 
-const LitElement = Object.getPrototypeOf(customElements.get('home-assistant-main'));
-const { html, css } = LitElement;
+// Wait for HA to finish booting before touching any of its internals.
+await customElements.whenDefined('home-assistant-main');
+
+let LitElement, html, css;
+try {
+  // HA 2023.4+ ships an importmap that maps 'lit' to its own bundled copy,
+  // so this never hits the network on modern HA.
+  ({ LitElement, html, css } = await import('lit'));
+} catch (_) {
+  // Older HA builds without an importmap: grab from HA's prototype chain.
+  LitElement = Object.getPrototypeOf(customElements.get('home-assistant-main'));
+  html = LitElement.html;
+  css  = LitElement.css;
+}
+
+if (typeof html !== 'function' || typeof css !== 'function') {
+  console.error('[air-quality-card] Could not load Lit from HA — minimum HA 2023.9.0 required.');
+  return;
+}
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -28,7 +42,6 @@ const THRESHOLDS = {
   co:     [4.4, 9.4,  12.4], // ppm (EPA AQI breakpoints)
 };
 
-// Bands for the computed 0–100 score
 const SCORE_BANDS = [
   { max: 25,  label: 'Good',     color: '#4caf50' },
   { max: 50,  label: 'Moderate', color: '#f9a825' },
@@ -36,7 +49,6 @@ const SCORE_BANDS = [
   { max: 100, label: 'Bad',      color: '#c62828' },
 ];
 
-// Bands for a native AQI entity (0–500 US AQI scale)
 const AQI_BANDS = [
   { max: 50,  label: 'Good',     color: '#4caf50' },
   { max: 100, label: 'Moderate', color: '#f9a825' },
@@ -53,8 +65,6 @@ function scoreInfo(score, bands) {
   return bands.find(b => score <= b.max) ?? bands[bands.length - 1];
 }
 
-// Returns 0–100 where 0 = clean air, 100 = very polluted.
-// Null inputs are skipped so unavailable entities don't contribute a fake penalty.
 function computeScore(pm25, voc, co2) {
   let total = 0;
   if (pm25 !== null) total += Math.min(40, (pm25 / 35) * 40);
@@ -74,8 +84,6 @@ function tileStatus(key, value, cfg) {
   return { idx: 3, pct: 100 };
 }
 
-// Returns configured tile definitions sorted by user's tile_order, with any
-// unconfigured order entries ignored and unordered configured tiles appended.
 function sortedTiles(config) {
   const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
   const order = config.tile_order || [];
@@ -141,31 +149,13 @@ class AirQualityCard extends LitElement {
       overflow: hidden;
     }
 
-    .top {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      margin-bottom: 14px;
-    }
+    .top { display: flex; align-items: center; gap: 20px; margin-bottom: 14px; }
 
-    .gauge-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex-shrink: 0;
-    }
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 
-    .score-label {
-      margin-top: 4px;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
+    .score-label { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
 
-    .right {
-      flex: 1;
-      min-width: 0;
-    }
+    .right { flex: 1; min-width: 0; }
 
     .graph-slot { width: 100%; }
 
@@ -194,78 +184,29 @@ class AirQualityCard extends LitElement {
 
     .tile > * { pointer-events: none; }
 
-    .tile-lbl {
-      font-size: 11px;
-      color: var(--secondary-text-color, #aaa);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .tile-lbl { font-size: 11px; color: var(--secondary-text-color, #aaa); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .tile-val {
-      font-size: 15px;
-      font-weight: 700;
-      margin: 3px 0 1px;
-      line-height: 1;
-    }
+    .tile-val { font-size: 15px; font-weight: 700; margin: 3px 0 1px; line-height: 1; }
 
-    .tile-unit {
-      font-size: 9px;
-      color: var(--secondary-text-color, #aaa);
-    }
+    .tile-unit { font-size: 9px; color: var(--secondary-text-color, #aaa); }
 
-    .tile-status {
-      font-size: 9px;
-      margin-bottom: 5px;
-      line-height: 1.2;
-    }
+    .tile-status { font-size: 9px; margin-bottom: 5px; line-height: 1.2; }
 
-    .bar-bg {
-      background: var(--divider-color, #3a3a3a);
-      border-radius: 3px;
-      height: 3px;
-      overflow: hidden;
-    }
+    .bar-bg { background: var(--divider-color, #3a3a3a); border-radius: 3px; height: 3px; overflow: hidden; }
 
-    .bar {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.4s ease, background 0.4s ease;
-    }
+    .bar { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
 
     .na { color: var(--secondary-text-color, #aaa); }
 
-    .card-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--secondary-text-color, #aaa);
-      letter-spacing: 0.3px;
-      margin-bottom: 10px;
-    }
+    .card-name { font-size: 13px; font-weight: 600; color: var(--secondary-text-color, #aaa); letter-spacing: 0.3px; margin-bottom: 10px; }
 
-    .climate-vals {
-      display: flex;
-      gap: 32px;
-      margin-bottom: 2px;
-      justify-content: center;
-    }
+    .climate-vals { display: flex; gap: 32px; margin-bottom: 2px; justify-content: center; }
 
-    .climate-val {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+    .climate-val { display: flex; flex-direction: column; align-items: center; }
 
-    .climate-val-label {
-      font-size: 11px;
-      color: var(--secondary-text-color, #aaa);
-    }
+    .climate-val-label { font-size: 11px; color: var(--secondary-text-color, #aaa); }
 
-    .climate-val-num {
-      font-size: 20px;
-      font-weight: 700;
-      line-height: 1.1;
-    }
+    .climate-val-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
   `;
 
   static getConfigElement() {
@@ -281,20 +222,16 @@ class AirQualityCard extends LitElement {
     this._config = config;
   }
 
-  // HA calls card.hass = hass on every state update. Guard against unnecessary
-  // re-renders by only updating _hass when a configured entity actually changed.
   set hass(hass) {
     if (!this._config) return;
     const ids = Object.values(this._config).filter(v => typeof v === 'string' && v);
     const changed = !this._hass || ids.some(id => hass.states[id] !== this._hass.states[id]);
     if (changed) this._hass = hass;
-    // Always push hass to mini-graph-card directly (it doesn't go through Lit props)
     this.shadowRoot?.querySelectorAll('mini-graph-card').forEach(c => { c.hass = hass; });
   }
 
   getCardSize() { return 4; }
 
-  // After Lit renders, configure mini-graph-card imperatively (it uses setConfig, not .config=)
   updated(changedProps) {
     if (changedProps.has('_config')) this._setupMiniGraphCard();
   }
@@ -316,10 +253,7 @@ class AirQualityCard extends LitElement {
     if (!deviceId && this._hass.entities) {
       for (const key of entityKeys) {
         const eid = cfg[key];
-        if (eid && this._hass.entities[eid]?.device_id) {
-          deviceId = this._hass.entities[eid].device_id;
-          break;
-        }
+        if (eid && this._hass.entities[eid]?.device_id) { deviceId = this._hass.entities[eid].device_id; break; }
       }
     }
     if (deviceId && this._hass.devices?.[deviceId]) {
@@ -335,15 +269,8 @@ class AirQualityCard extends LitElement {
     if (cfg.temperature_entity) entities.push({ entity: cfg.temperature_entity, name: 'Temperature', color: '#ffb300' });
     if (cfg.humidity_entity)    entities.push({ entity: cfg.humidity_entity,    name: 'Humidity',    color: '#42a5f5' });
     if (!entities.length) return null;
-    return {
-      entities,
-      hours_to_show: 24,
-      line_width: 2,
-      font_size: 85,
-      height: 80,
-      fill: false,
-      show: { icon: false, name: false, state: false, legend: false, labels: false },
-    };
+    return { entities, hours_to_show: 24, line_width: 2, font_size: 85, height: 80, fill: false,
+      show: { icon: false, name: false, state: false, legend: false, labels: false } };
   }
 
   _setupMiniGraphCard() {
@@ -362,25 +289,20 @@ class AirQualityCard extends LitElement {
 
   _tileClick(entityId) {
     if (this._config.tile_tap_enabled === false || !entityId) return;
-    this.dispatchEvent(new CustomEvent('hass-more-info', {
-      bubbles: true, composed: true, detail: { entityId },
-    }));
+    this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
   }
 
   _renderGauge(score, color) {
-    const r = 48, cx = 60, cy = 60;
-    const C = 2 * Math.PI * r;
+    const r = 48, cx = 60, cy = 60, C = 2 * Math.PI * r;
     const unavail = score === null;
     const filled = unavail ? 0 : Math.min((score / 100) * C, C);
     return html`
       <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
-          stroke="var(--divider-color,#3a3a3a)" stroke-width="10"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--divider-color,#3a3a3a)" stroke-width="10"/>
         ${!unavail ? html`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
           stroke="${color}" stroke-width="10"
           stroke-dasharray="${filled.toFixed(2)} ${C.toFixed(2)}"
-          stroke-linecap="round"
-          transform="rotate(-90 ${cx} ${cy})"/>` : ''}
+          stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"/>` : ''}
         <text x="${cx}" y="${cy - 5}" text-anchor="middle"
           fill="${unavail ? 'var(--secondary-text-color,#aaa)' : 'currentColor'}"
           font-size="${unavail ? 20 : 28}" font-weight="700">${unavail ? '—' : score}</text>
@@ -394,23 +316,17 @@ class AirQualityCard extends LitElement {
     const cfg = this._config;
     const val = this._stateVal(cfg[t.cfgKey]);
     const label = cfg[`${t.key}_name`] || (cfg.use_chemical_names ? CHEMICAL_NAMES[t.key] : t.label);
-
     let valContent, statusText, statusColor, barWidth, barBg;
     if (val === null) {
-      valContent  = html`<span class="na">—</span>`;
-      statusText  = 'Unavailable';
-      statusColor = 'var(--secondary-text-color, #aaa)';
-      barWidth    = '0%';
-      barBg       = '#3a3a3a';
+      valContent = html`<span class="na">—</span>`;
+      statusText = 'Unavailable'; statusColor = 'var(--secondary-text-color, #aaa)';
+      barWidth = '0%'; barBg = '#3a3a3a';
     } else {
       const { idx, pct } = tileStatus(t.key, val, cfg);
-      statusText  = STATUS_LABELS[idx];
-      statusColor = STATUS_COLORS[idx];
-      barWidth    = `${Math.min(100, pct).toFixed(1)}%`;
-      barBg       = STATUS_COLORS[idx];
-      valContent  = html`${val.toFixed(1)}<span class="tile-unit"> ${t.unit}</span>`;
+      statusText = STATUS_LABELS[idx]; statusColor = STATUS_COLORS[idx];
+      barWidth = `${Math.min(100, pct).toFixed(1)}%`; barBg = STATUS_COLORS[idx];
+      valContent = html`${val.toFixed(1)}<span class="tile-unit"> ${t.unit}</span>`;
     }
-
     return html`
       <div class="tile" data-key="${t.key}" @click=${() => this._tileClick(cfg[t.cfgKey])}>
         <div class="tile-lbl">${label}</div>
@@ -424,31 +340,24 @@ class AirQualityCard extends LitElement {
   render() {
     if (!this._config) return html``;
     const cfg = this._config;
-
     const nativeAqi = this._stateVal(cfg.aqi_entity);
     const pm25Val   = this._stateVal(cfg.pm25_entity);
     const vocVal    = this._stateVal(cfg.voc_entity);
     const co2Val    = this._stateVal(cfg.co2_entity);
     const hasScore  = nativeAqi !== null || pm25Val !== null;
-
     let score = null, scoreLabel = 'Unavailable', scoreColor = 'var(--secondary-text-color, #aaa)';
     if (hasScore) {
       const useNative = nativeAqi !== null;
-      score = useNative
-        ? Math.round(Math.min(500, Math.max(0, nativeAqi)))
-        : computeScore(pm25Val, vocVal, co2Val);
+      score = useNative ? Math.round(Math.min(500, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
       const band = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
-      scoreLabel = band.label;
-      scoreColor = band.color;
+      scoreLabel = band.label; scoreColor = band.color;
     }
-
     const name     = this._deviceName();
     const showName = cfg.show_name !== false && !!name;
     const tempV    = this._stateVal(cfg.temperature_entity);
     const humV     = this._stateVal(cfg.humidity_entity);
     const hasGraph = !!(cfg.temperature_entity || cfg.humidity_entity);
     const tiles    = sortedTiles(cfg);
-
     return html`
       <ha-card>
         ${showName ? html`<div class="card-name">${name}</div>` : ''}
@@ -484,7 +393,6 @@ class AirQualityCard extends LitElement {
 
 // ── AirQualityCardEditor ──────────────────────────────────────────────────────
 
-// Maps HA device_class values to card config keys (retained for potential future auto-discovery)
 const DEVICE_CLASS_MAP = {
   aqi:                              'aqi_entity',
   pm1:                              'pm1_entity',
@@ -499,7 +407,6 @@ const DEVICE_CLASS_MAP = {
   humidity:                         'humidity_entity',
 };
 
-// Card-level settings only — pollutant tile entities live in the custom tile list below
 const GENERAL_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
   { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                                         selector: { boolean: {} } },
@@ -523,119 +430,39 @@ class AirQualityCardEditor extends LitElement {
   static styles = css`
     :host { display: block; }
     ha-form { display: block; }
-
     .tiles-section { padding: 8px 16px 12px; }
-
-    .tiles-header {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--secondary-text-color);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
-
-    .tile-row {
-      border-radius: 8px;
-      margin-bottom: 6px;
-      background: var(--secondary-background-color, #2c2c2e);
-      overflow: hidden;
-    }
-
+    .tiles-header { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, #2c2c2e); overflow: hidden; }
     .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
     .tile-row.dragging  { opacity: 0.3; }
-
-    .tile-row-header {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 8px 4px;
-    }
-
-    .tile-grip {
-      color: var(--secondary-text-color);
-      font-size: 16px;
-      cursor: grab;
-      user-select: none;
-      flex-shrink: 0;
-    }
-
-    .tile-name {
-      flex: 1;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
+    .tile-row-header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; }
+    .tile-grip { color: var(--secondary-text-color); font-size: 16px; cursor: grab; user-select: none; flex-shrink: 0; }
+    .tile-name { flex: 1; font-size: 13px; font-weight: 600; }
     .tile-row-btns { display: flex; gap: 2px; }
-
-    .tile-btn {
-      background: none;
-      border: none;
-      color: var(--secondary-text-color);
-      cursor: pointer;
-      font-size: 11px;
-      padding: 3px 5px;
-      border-radius: 3px;
-      line-height: 1;
-    }
-
-    .tile-btn:hover:not([disabled]) {
-      color: var(--primary-text-color);
-      background: var(--divider-color, #3a3a3a);
-    }
-
+    .tile-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 11px; padding: 3px 5px; border-radius: 3px; line-height: 1; }
+    .tile-btn:hover:not([disabled]) { color: var(--primary-text-color); background: var(--divider-color, #3a3a3a); }
     .tile-btn[disabled] { opacity: 0.3; cursor: default; }
-    .tile-btn.active    { color: var(--primary-color, #03a9f4); }
-    .tile-btn.remove    { color: var(--error-color, #c62828); }
-
-    .tile-entity-picker ha-form { display: block; }
-
-    .tile-settings {
-      border-top: 1px solid var(--divider-color, #3a3a3a);
-      padding: 4px 0;
-    }
-
+    .tile-btn.active { color: var(--primary-color, #03a9f4); }
+    .tile-btn.remove { color: var(--error-color, #c62828); }
+    .tile-settings { border-top: 1px solid var(--divider-color, #3a3a3a); padding: 4px 0; }
     .add-tile-row { margin-top: 8px; }
-
-    .add-tile-select {
-      width: 100%;
-      padding: 8px;
-      border-radius: 6px;
-      background: var(--secondary-background-color, #2c2c2e);
-      color: var(--primary-text-color, #fff);
-      border: 1px solid var(--divider-color, #3a3a3a);
-      font-size: 13px;
-      cursor: pointer;
-    }
-
+    .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, #2c2c2e); color: var(--primary-text-color, #fff); border: 1px solid var(--divider-color, #3a3a3a); font-size: 13px; cursor: pointer; }
     .add-tile-select:hover { border-color: var(--primary-color, #03a9f4); }
   `;
 
-  setConfig(config) {
-    this._config = { ...config };
-  }
+  setConfig(config) { this._config = { ...config }; }
 
-  set hass(hass) {
-    this._hass = hass;
-  }
+  set hass(hass) { this._hass = hass; }
 
   _fireConfigChanged(config) {
-    this.dispatchEvent(new CustomEvent('config-changed', {
-      detail: { config },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config }, bubbles: true, composed: true }));
   }
 
-  // Merges updates into _config, removing keys set to undefined or empty entity strings.
   _updateConfig(updates) {
     const next = { ...this._config };
     for (const [k, v] of Object.entries(updates)) {
-      if (v === undefined || (k.endsWith('_entity') && v === '')) {
-        delete next[k];
-      } else {
-        next[k] = v;
-      }
+      if (v === undefined || (k.endsWith('_entity') && v === '')) delete next[k];
+      else next[k] = v;
     }
     this._config = next;
     this._fireConfigChanged(next);
@@ -666,8 +493,6 @@ class AirQualityCardEditor extends LitElement {
     };
   }
 
-  // Returns tiles to show in the editor: all keys in tile_order (even without an
-  // entity assigned yet) plus any configured tiles not yet added to tile_order.
   _editorTiles() {
     const c = this._config;
     const order = c.tile_order || [];
@@ -678,8 +503,7 @@ class AirQualityCardEditor extends LitElement {
 
   _moveTile(key, dir) {
     const order = this._editorTiles().map(t => t.key);
-    const idx   = order.indexOf(key);
-    const next  = idx + dir;
+    const idx = order.indexOf(key), next = idx + dir;
     if (next < 0 || next >= order.length) return;
     [order[idx], order[next]] = [order[next], order[idx]];
     this._updateConfig({ tile_order: order });
@@ -689,19 +513,14 @@ class AirQualityCardEditor extends LitElement {
     const next = { ...this._config };
     const newOrder = (next.tile_order || []).filter(k => k !== t.key);
     if (newOrder.length) next.tile_order = newOrder; else delete next.tile_order;
-    delete next[t.cfgKey];
-    delete next[`${t.key}_name`];
-    delete next[`${t.key}_t1`];
-    delete next[`${t.key}_t2`];
-    delete next[`${t.key}_t3`];
+    delete next[t.cfgKey]; delete next[`${t.key}_name`];
+    delete next[`${t.key}_t1`]; delete next[`${t.key}_t2`]; delete next[`${t.key}_t3`];
     if (this._expandedTile === t.key) this._expandedTile = null;
-    this._config = next;
-    this._fireConfigChanged(next);
+    this._config = next; this._fireConfigChanged(next);
   }
 
   _addTile(e) {
-    const key = e.target.value;
-    e.target.value = '';
+    const key = e.target.value; e.target.value = '';
     if (!key) return;
     const current = this._editorTiles().map(t => t.key);
     if (current.includes(key)) return;
@@ -715,29 +534,23 @@ class AirQualityCardEditor extends LitElement {
   _onDrop(targetKey) {
     if (!this._dragSrc || this._dragSrc === targetKey) return;
     const order = this._editorTiles().map(t => t.key);
-    const from  = order.indexOf(this._dragSrc);
-    const to    = order.indexOf(targetKey);
+    const from = order.indexOf(this._dragSrc), to = order.indexOf(targetKey);
     if (from === -1 || to === -1) return;
-    order.splice(from, 1);
-    order.splice(to, 0, this._dragSrc);
-    this._dragSrc = null;
-    this._dragOver = null;
+    order.splice(from, 1); order.splice(to, 0, this._dragSrc);
+    this._dragSrc = null; this._dragOver = null;
     this._updateConfig({ tile_order: order });
   }
 
   _renderTileRow(t, tiles) {
-    const cfg        = this._config;
+    const cfg = this._config;
     const isExpanded = this._expandedTile === t.key;
     const isDragging = this._dragSrc === t.key;
     const isDragOver = this._dragOver === t.key;
-    const idx        = tiles.indexOf(t);
-    const total      = tiles.length;
+    const idx = tiles.indexOf(t), total = tiles.length;
 
     const entitySchema = [
       { name: 'entity', label: `${t.label} entity (${t.unit})`, selector: { entity: { domain: 'sensor' } } },
     ];
-    const entityData = { entity: cfg[t.cfgKey] || '' };
-
     const settingsSchema = [
       { name: `${t.key}_name`, label: `Label override (default: ${t.label})`, selector: { text: {} } },
       { name: `${t.key}_t1`,   label: `Good ≤ (${t.unit})`,                   selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
@@ -746,18 +559,15 @@ class AirQualityCardEditor extends LitElement {
     ];
 
     return html`
-      <div
-        class="tile-row ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}"
+      <div class="tile-row ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}"
         @dragover=${(e) => e.preventDefault()}
         @dragenter=${(e) => { e.preventDefault(); if (this._dragSrc && this._dragSrc !== t.key) this._dragOver = t.key; }}
         @dragleave=${() => { if (this._dragOver === t.key) this._dragOver = null; }}
-        @drop=${(e) => { e.preventDefault(); this._onDrop(t.key); }}
-      >
+        @drop=${(e) => { e.preventDefault(); this._onDrop(t.key); }}>
         <div class="tile-row-header">
           <span class="tile-grip" draggable="true"
             @dragstart=${(e) => { this._dragSrc = t.key; e.dataTransfer.effectAllowed = 'move'; }}
-            @dragend=${() => { this._dragSrc = null; this._dragOver = null; }}
-          >⠿</span>
+            @dragend=${() => { this._dragSrc = null; this._dragOver = null; }}>⠿</span>
           <span class="tile-name">${cfg[`${t.key}_name`] || t.label}</span>
           <div class="tile-row-btns">
             <button class="tile-btn" ?disabled=${idx === 0}
@@ -771,17 +581,13 @@ class AirQualityCardEditor extends LitElement {
               @click=${() => this._removeTile(t)} title="Remove tile">✕</button>
           </div>
         </div>
-
-        <div class="tile-entity-picker">
-          <ha-form
-            .schema=${entitySchema}
-            .data=${entityData}
-            .hass=${this._hass}
-            .computeLabel=${(s) => s.label}
-            @value-changed=${(e) => this._setTileEntity(t.cfgKey, e.detail.value.entity)}
-          ></ha-form>
-        </div>
-
+        <ha-form
+          .schema=${entitySchema}
+          .data=${{ entity: cfg[t.cfgKey] || '' }}
+          .hass=${this._hass}
+          .computeLabel=${(s) => s.label}
+          @value-changed=${(e) => this._setTileEntity(t.cfgKey, e.detail.value.entity)}
+        ></ha-form>
         ${isExpanded ? html`
           <div class="tile-settings">
             <ha-form
@@ -791,18 +597,16 @@ class AirQualityCardEditor extends LitElement {
               .computeLabel=${(s) => s.label}
               @value-changed=${(e) => this._updateConfig(e.detail.value)}
             ></ha-form>
-          </div>
-        ` : ''}
+          </div>` : ''}
       </div>
     `;
   }
 
   render() {
     if (!this._config) return html``;
-    const tiles        = this._editorTiles();
-    const usedKeys     = tiles.map(t => t.key);
+    const tiles = this._editorTiles();
+    const usedKeys = tiles.map(t => t.key);
     const unconfigured = TILE_DEFS.filter(t => !usedKeys.includes(t.key));
-
     return html`
       <ha-form
         .schema=${GENERAL_SCHEMA}
@@ -811,7 +615,6 @@ class AirQualityCardEditor extends LitElement {
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
-
       <div class="tiles-section">
         <div class="tiles-header">Pollutant Tiles</div>
         ${tiles.map(t => this._renderTileRow(t, tiles))}
@@ -821,8 +624,7 @@ class AirQualityCardEditor extends LitElement {
               <option value="">＋ Add tile</option>
               ${unconfigured.map(t => html`<option value="${t.key}">${t.label} (${t.unit})</option>`)}
             </select>
-          </div>
-        ` : ''}
+          </div>` : ''}
       </div>
     `;
   }
@@ -842,4 +644,4 @@ window.customCards.push({
   documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
 });
 
-}); // end customElements.whenDefined
+})(); // end async IIFE
