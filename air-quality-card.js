@@ -1,7 +1,10 @@
 'use strict';
 
-// Load LitElement and template helpers from HA's bundled Lit instance.
-// home-assistant-main is guaranteed to be defined before any Lovelace resource loads.
+// Defer until HA's root element is defined so customElements.get() is guaranteed
+// to return a class (not undefined), preventing Object.getPrototypeOf crashes
+// when the Lovelace resource script runs before HA finishes booting.
+customElements.whenDefined('home-assistant-main').then(() => {
+
 const LitElement = Object.getPrototypeOf(customElements.get('home-assistant-main'));
 const { html, css } = LitElement;
 
@@ -838,3 +841,5 @@ window.customCards.push({
   preview: true,
   documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
 });
+
+}); // end customElements.whenDefined
