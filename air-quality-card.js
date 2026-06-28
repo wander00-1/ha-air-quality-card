@@ -92,9 +92,10 @@ function computeScore(pm25, voc, co2) {
 
 function tileStatus(key, value, cfg) {
   const def = THRESHOLDS[key];
-  const t1 = cfg?.[`${key}_t1`] ?? def[0];
-  const t2 = cfg?.[`${key}_t2`] ?? def[1];
-  const t3 = cfg?.[`${key}_t3`] ?? def[2];
+  const t1 = cfg?.[`${key}_t1`] ?? def?.[0] ?? null;
+  const t2 = cfg?.[`${key}_t2`] ?? def?.[1] ?? null;
+  const t3 = cfg?.[`${key}_t3`] ?? def?.[2] ?? null;
+  if (t1 === null || t2 === null || t3 === null) return { idx: 0, pct: 0 };
   if (value <= t1) return { idx: 0, pct: (value / t1) * 25 };
   if (value <= t2) return { idx: 1, pct: 25 + ((value - t1) / (t2 - t1)) * 25 };
   if (value <= t3) return { idx: 2, pct: 50 + ((value - t2) / (t3 - t2)) * 25 };
@@ -104,7 +105,13 @@ function tileStatus(key, value, cfg) {
 function sortedTiles(config) {
   const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
   const order = config.tile_order || [];
-  const inOrder = order.map(k => configured.find(t => t.key === k)).filter(Boolean);
+  const inOrder = order.map(k => {
+    const def = configured.find(t => t.key === k);
+    if (def) return def;
+    if (k.startsWith('custom_') && config[`${k}_entity`])
+      return { key: k, cfgKey: `${k}_entity`, label: config[`${k}_name`] || 'Custom', unit: config[`${k}_unit`] || '' };
+    return null;
+  }).filter(Boolean);
   const rest = configured.filter(t => !order.includes(t.key));
   return [...inOrder, ...rest];
 }
@@ -341,7 +348,7 @@ class AirQualityCard extends LitElement {
   _renderTile(t) {
     const cfg = this._config;
     const val = this._stateVal(cfg[t.cfgKey]);
-    const label = cfg[`${t.key}_name`] || (cfg.use_chemical_names ? CHEMICAL_NAMES[t.key] : t.label);
+    const label = cfg[`${t.key}_name`] || (cfg.use_chemical_names ? (CHEMICAL_NAMES[t.key] || t.label) : t.label);
     let valContent, statusText, statusColor, barWidth, barBg;
     if (val === null) {
       valContent = html`<span class="na">—</span>`;
@@ -490,6 +497,15 @@ class AirQualityCardEditor extends LitElement {
 
   _tileFormData(t) {
     const c = this._config;
+    if (t.key.startsWith('custom_')) {
+      return {
+        [`${t.key}_name`]: c[`${t.key}_name`] ?? '',
+        [`${t.key}_unit`]: c[`${t.key}_unit`] ?? '',
+        [`${t.key}_t1`]:   c[`${t.key}_t1`]   ?? null,
+        [`${t.key}_t2`]:   c[`${t.key}_t2`]   ?? null,
+        [`${t.key}_t3`]:   c[`${t.key}_t3`]   ?? null,
+      };
+    }
     const def = THRESHOLDS[t.key] || [0, 0, 0];
     return {
       [`${t.key}_name`]: c[`${t.key}_name`] ?? '',
@@ -502,8 +518,14 @@ class AirQualityCardEditor extends LitElement {
   _editorTiles() {
     const c = this._config;
     const order = c.tile_order || [];
-    const inOrder = order.map(k => TILE_DEFS.find(t => t.key === k)).filter(Boolean);
-    const extras  = TILE_DEFS.filter(t => c[t.cfgKey] && !order.includes(t.key));
+    const inOrder = order.map(k => {
+      const def = TILE_DEFS.find(t => t.key === k);
+      if (def) return def;
+      if (k.startsWith('custom_'))
+        return { key: k, cfgKey: `${k}_entity`, label: c[`${k}_name`] || 'Custom tile', unit: c[`${k}_unit`] || '' };
+      return null;
+    }).filter(Boolean);
+    const extras = TILE_DEFS.filter(t => c[t.cfgKey] && !order.includes(t.key));
     return [...inOrder, ...extras];
   }
 
@@ -521,6 +543,7 @@ class AirQualityCardEditor extends LitElement {
     if (newOrder.length) next.tile_order = newOrder; else delete next.tile_order;
     delete next[t.cfgKey]; delete next[`${t.key}_name`];
     delete next[`${t.key}_t1`]; delete next[`${t.key}_t2`]; delete next[`${t.key}_t3`];
+    if (t.key.startsWith('custom_')) delete next[`${t.key}_unit`];
     if (this._expandedTile === t.key) this._expandedTile = null;
     this._config = next; this._fireConfigChanged(next);
   }
@@ -529,6 +552,13 @@ class AirQualityCardEditor extends LitElement {
     const key = e.target.value; e.target.value = '';
     if (!key) return;
     const current = this._editorTiles().map(t => t.key);
+    if (key === '__custom__') {
+      const nums = current.filter(k => k.startsWith('custom_')).map(k => parseInt(k.split('_')[1])).filter(n => !isNaN(n));
+      const newKey = `custom_${nums.length ? Math.max(...nums) + 1 : 1}`;
+      this._expandedTile = newKey;
+      this._updateConfig({ tile_order: [...current, newKey] });
+      return;
+    }
     if (current.includes(key)) return;
     this._updateConfig({ tile_order: [...current, key] });
   }
@@ -550,14 +580,22 @@ class AirQualityCardEditor extends LitElement {
     const isDragOver = this._dragOver === t.key;
     const idx = tiles.indexOf(t), total = tiles.length;
 
+    const isCustom = t.key.startsWith('custom_');
     const entitySchema = [
-      { name: 'entity', label: `${t.label} entity (${t.unit})`, selector: { entity: { domain: 'sensor' } } },
+      { name: 'entity', label: isCustom ? 'Entity' : `${t.label} entity (${t.unit})`, selector: { entity: { domain: 'sensor' } } },
     ];
-    const settingsSchema = [
+    const unit = isCustom ? (this._config[`${t.key}_unit`] || '') : t.unit;
+    const settingsSchema = isCustom ? [
+      { name: `${t.key}_name`, label: 'Tile label',                         selector: { text: {} } },
+      { name: `${t.key}_unit`, label: 'Unit (e.g. ppm, µg/m³)',             selector: { text: {} } },
+      { name: `${t.key}_t1`,   label: `Good ≤${unit ? ` (${unit})` : ''}`,      selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${t.key}_t2`,   label: `Moderate ≤${unit ? ` (${unit})` : ''}`,  selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${t.key}_t3`,   label: `High ≤${unit ? ` (${unit})` : ''}`,      selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+    ] : [
       { name: `${t.key}_name`, label: `Label override (default: ${t.label})`, selector: { text: {} } },
-      { name: `${t.key}_t1`,   label: `Good ≤ (${t.unit})`,                   selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-      { name: `${t.key}_t2`,   label: `Moderate ≤ (${t.unit})`,               selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
-      { name: `${t.key}_t3`,   label: `High ≤ (${t.unit})`,                   selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${t.key}_t1`,   label: `Good ≤ (${unit})`,                     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${t.key}_t2`,   label: `Moderate ≤ (${unit})`,                 selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
+      { name: `${t.key}_t3`,   label: `High ≤ (${unit})`,                     selector: { number: { min: 0, step: 0.1, mode: 'box' } } },
     ];
 
     return html`
@@ -570,7 +608,7 @@ class AirQualityCardEditor extends LitElement {
           <span class="tile-grip" draggable="true"
             @dragstart=${(e) => { this._dragSrc = t.key; e.dataTransfer.effectAllowed = 'move'; }}
             @dragend=${() => { this._dragSrc = null; this._dragOver = null; }}>⠿</span>
-          <span class="tile-name">${cfg[`${t.key}_name`] || CHEMICAL_NAMES[t.key]}</span>
+          <span class="tile-name">${cfg[`${t.key}_name`] || CHEMICAL_NAMES[t.key] || t.label}</span>
           <div class="tile-row-btns">
             <button class="tile-btn" ?disabled=${idx === 0}
               @click=${() => this._moveTile(t.key, -1)} title="Move up">▲</button>
@@ -634,6 +672,7 @@ class AirQualityCardEditor extends LitElement {
             <select class="add-tile-select" @change=${(e) => this._addTile(e)}>
               <option value="">＋ Add tile</option>
               ${unconfigured.map(t => html`<option value="${t.key}">${CHEMICAL_NAMES[t.key]} (${t.label}, ${t.unit})</option>`)}
+              <option value="__custom__">Custom tile…</option>
             </select>
           </div>` : ''}
       </div>
