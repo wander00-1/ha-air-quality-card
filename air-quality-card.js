@@ -570,7 +570,7 @@ class AirQualityCardEditor extends LitElement {
           <span class="tile-grip" draggable="true"
             @dragstart=${(e) => { this._dragSrc = t.key; e.dataTransfer.effectAllowed = 'move'; }}
             @dragend=${() => { this._dragSrc = null; this._dragOver = null; }}>⠿</span>
-          <span class="tile-name">${cfg[`${t.key}_name`] || t.label}</span>
+          <span class="tile-name">${cfg[`${t.key}_name`] || `${CHEMICAL_NAMES[t.key]} (${t.label})`}</span>
           <div class="tile-row-btns">
             <button class="tile-btn" ?disabled=${idx === 0}
               @click=${() => this._moveTile(t.key, -1)} title="Move up">▲</button>
