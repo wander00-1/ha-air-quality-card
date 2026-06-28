@@ -7,10 +7,11 @@ A HACS-compatible Lovelace card that displays a composite air quality score, pol
 ## Features
 
 - Circular AQI gauge with color-coded score and Good / Moderate / Poor / Bad label
-- Pollutant tiles: PM1.0, PM2.5, PM4.0, PM10, VOC, CO₂, NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH — each with threshold-based status label and progress bar
+- Pollutant tiles: PM1.0, PM2.5, PM4.0, PM10, VOC, CO₂, NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH, SO₂, O₃, CO — each with threshold-based status label and progress bar
+- **Custom tiles** — add any sensor as a tile with a configurable label, unit, and thresholds
 - Temperature and humidity current values with 24-hour combined trend graph via [mini-graph-card](https://github.com/kalkih/mini-graph-card)
 - Tap any tile to open the entity's detail popup
-- Visual config editor with entity pickers — no YAML required
+- Compact visual editor — only configured tiles are shown; add via dropdown, reorder with ▲▼ or drag-and-drop, remove with ✕, expand per-tile settings with ⚙
 - Per-card configurable thresholds for every pollutant tile, with sensible defaults
 - Graceful unavailable/unknown state handling — gauge and tiles clearly indicate when a sensor is offline
 - Supports a native AQI entity (uses the sensor value directly) or computes a score from PM2.5, VOC, and CO₂
@@ -56,6 +57,24 @@ temperature_entity: sensor.temperature
 humidity_entity: sensor.humidity
 show_name: true
 tile_tap_enabled: true
+tile_order: [pm1, pm25, pm4, pm10, voc, co2]
+```
+
+#### Custom tiles
+
+Custom tiles can be added via the visual editor or YAML. Each instance gets a numbered key:
+
+```yaml
+tile_order: [pm25, co2, custom_1, custom_2]
+custom_1_entity: sensor.my_sensor
+custom_1_name: My Sensor
+custom_1_unit: ppb
+custom_1_t1: 100    # Good ≤
+custom_1_t2: 200    # Moderate ≤
+custom_1_t3: 300    # High ≤
+custom_2_entity: sensor.another_sensor
+custom_2_name: Another Sensor
+custom_2_unit: ppm
 ```
 
 ### Entity keys
@@ -75,6 +94,9 @@ tile_tap_enabled: true
 | `h2_entity` | — | H₂ hydrogen sensor (ppm) |
 | `ethanol_entity` | — | C₂H₅OH ethanol sensor (ppm) |
 | `rh_entity` | — | Relative humidity tile (%) |
+| `so2_entity` | — | SO₂ sensor (ppb) |
+| `o3_entity` | — | O₃ ozone sensor (ppb) |
+| `co_entity` | — | CO sensor (ppm) |
 | `temperature_entity` | — | Temperature sensor (value display + trend graph) |
 | `humidity_entity` | — | Humidity sensor (value display + trend graph) |
 
@@ -139,6 +161,9 @@ Default thresholds (all configurable per card in the visual editor):
 | H₂ | ≤ 500 ppm | ≤ 2000 | ≤ 10000 | > 10000 |
 | C₂H₅OH | ≤ 100 ppm | ≤ 500 | ≤ 1000 | > 1000 |
 | RH | ≤ 60 % | ≤ 70 | ≤ 80 | > 80 |
+| SO₂ | ≤ 35 ppb | ≤ 75 | ≤ 185 | > 185 |
+| O₃ | ≤ 54 ppb | ≤ 70 | ≤ 85 | > 85 |
+| CO | ≤ 4.4 ppm | ≤ 9.4 | ≤ 12.4 | > 12.4 |
 
 ## Development Roadmap
 
@@ -150,6 +175,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v0.6** — Unavailable/unknown entity state handling; native AQI entity support; extended sensor support (NO₂, NH₃, CH₄, H₂, C₂H₅OH, RH, PM4.0); per-card configurable thresholds; tap tile to open entity detail
 - [x] **v0.7** — Responsive tile layout; tile width cap; optional fixed column count; combined temperature/humidity graph with correct proportions at all card widths
 - [x] **v1.0** — Pollutant label overrides; per-tile settings sections; stable release; HACS default repository submission
+- [x] **v1.1** — Compact tile editor (add/remove/reorder inline); custom tiles; SO₂, O₃, CO pollutant tiles
 
 ## Credits
 
