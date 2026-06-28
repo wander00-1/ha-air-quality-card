@@ -199,8 +199,9 @@ const CARD_CSS = `
 const EDITOR_CSS = `
   :host { display: block; }
   ha-form { display: block; }
+  .section-header { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); padding: 16px 16px 0; border-top: 1px solid var(--divider-color, #3a3a3a); margin-top: 8px; }
+  .section-header:first-child { border-top: none; margin-top: 0; padding-top: 8px; }
   .tiles-section { padding: 8px 16px 12px; }
-  .tiles-header { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
   .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, #2c2c2e); overflow: hidden; }
   .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
   .tile-row.dragging  { opacity: 0.3; }
@@ -233,7 +234,7 @@ class AirQualityCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { show_name: true, tile_tap_enabled: true };
+    return { show_name: true, tile_tap_enabled: true, tile_order: ['pm1', 'pm25', 'pm4', 'pm10', 'voc', 'co2'] };
   }
 
   createRenderRoot() {
@@ -415,12 +416,15 @@ class AirQualityCard extends LitElement {
 
 // ── AirQualityCardEditor ──────────────────────────────────────────────────────
 
-const GENERAL_SCHEMA = [
+const DISPLAY_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
   { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                                         selector: { boolean: {} } },
   { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)',                           selector: { text: {} } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
+];
+
+const ENTITY_SCHEMA = [
   { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly; falls back to computed)',          selector: { entity: { domain: 'sensor' } } },
   { name: 'temperature_entity', label: 'Temperature Entity (climate display + graph)',                             selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
   { name: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)',                                selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
@@ -461,7 +465,7 @@ class AirQualityCardEditor extends LitElement {
     this._fireConfigChanged(next);
   }
 
-  _generalFormData() {
+  _displayFormData() {
     const c = this._config;
     return {
       show_name:          c.show_name          ?? true,
@@ -469,6 +473,12 @@ class AirQualityCardEditor extends LitElement {
       use_chemical_names: c.use_chemical_names ?? false,
       name:               c.name               ?? '',
       columns:            c.columns            ?? null,
+    };
+  }
+
+  _entityFormData() {
+    const c = this._config;
+    return {
       aqi_entity:         c.aqi_entity         ?? '',
       temperature_entity: c.temperature_entity ?? '',
       humidity_entity:    c.humidity_entity    ?? '',
@@ -597,15 +607,24 @@ class AirQualityCardEditor extends LitElement {
     const usedKeys = tiles.map(t => t.key);
     const unconfigured = TILE_DEFS.filter(t => !usedKeys.includes(t.key));
     return html`
+      <div class="section-header">Display</div>
       <ha-form
-        .schema=${GENERAL_SCHEMA}
-        .data=${this._generalFormData()}
+        .schema=${DISPLAY_SCHEMA}
+        .data=${this._displayFormData()}
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
+      <div class="section-header">Entities</div>
+      <ha-form
+        .schema=${ENTITY_SCHEMA}
+        .data=${this._entityFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
+      <div class="section-header">Pollutant Tiles</div>
       <div class="tiles-section">
-        <div class="tiles-header">Pollutant Tiles</div>
         ${tiles.map(t => this._renderTileRow(t, tiles))}
         ${unconfigured.length ? html`
           <div class="add-tile-row">
