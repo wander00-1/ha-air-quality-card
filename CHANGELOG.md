@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] - 2026-06-28
+
+### Added
+- Compact tile editor — only configured tiles are shown; add via dropdown, reorder with ▲▼ or drag-and-drop, remove with ✕, expand per-tile settings with ⚙
+- Custom tile support — add any sensor as a tile with a configurable label, unit, and thresholds; unlimited instances
+- New cards default to PM1.0, PM2.5, PM4.0, PM10, VOC, and CO₂ tiles pre-added
+- Editor split into Display, Entities, and Pollutant Tiles sections
+- Add tile dropdown shows full chemical name, symbol, and unit for easy identification
+
 ## [1.0.5] - 2026-06-28
 
 ### Added
