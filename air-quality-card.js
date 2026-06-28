@@ -1,45 +1,62 @@
 'use strict';
 
+// Synchronous — Lovelace scans window.customCards at page load.
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'air-quality-card',
+  name: 'Air Quality Card',
+  description: 'Composite air quality score with pollutant tiles and trend graphs',
+  preview: true,
+  documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
+});
+
 (async () => {
 
-// Wait for HA to finish booting before touching any of its internals.
 await customElements.whenDefined('home-assistant-main');
 
-let LitElement, html, css;
+// Strategy 1: import('lit') works when HA has an importmap for it (some builds do).
+// Strategy 2: walk the prototype chain and find LitElement by its stable _$litElement$
+//   marker, then create a synthetic html that produces TemplateResult objects Lit
+//   already knows how to process (_$litType$ is explicitly unminified in Lit's build).
+let LitElement, html;
 try {
-  // HA 2023.4+ ships an importmap that maps 'lit' to its own bundled copy,
-  // so this never hits the network on modern HA.
-  ({ LitElement, html, css } = await import('lit'));
+  ({ LitElement, html } = await import('lit'));
 } catch (_) {
-  // Older HA builds without an importmap: grab from HA's prototype chain.
-  LitElement = Object.getPrototypeOf(customElements.get('home-assistant-main'));
-  html = LitElement.html;
-  css  = LitElement.css;
+  let proto = customElements.get('home-assistant-main');
+  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_$litElement$')) {
+    proto = Object.getPrototypeOf(proto);
+  }
+  LitElement = proto;
+  html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 }
 
-if (typeof html !== 'function' || typeof css !== 'function') {
-  console.error('[air-quality-card] Could not load Lit from HA — minimum HA 2023.9.0 required.');
+if (!LitElement || !html) {
+  console.error('[air-quality-card] Could not load LitElement from HA — minimum HA 2023.9 required.');
   return;
 }
+
+// Styles are injected via createRenderRoot() on each class so we never need
+// the css tagged-template function (its CSSResult class is inaccessible from
+// outside HA's module closure on most builds).
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 const THRESHOLDS = {
-  pm1:    [10,  25,   50],    // µg/m³
-  pm25:   [12,  35,   55],    // µg/m³
-  pm4:    [12,  35,   55],    // µg/m³ (no WHO guideline; use PM2.5 scale)
-  pm10:   [50,  100,  150],   // µg/m³
-  voc:    [150, 250,  400],   // index
-  co2:    [800, 1000, 1500],  // ppm
-  no2:    [40,  100,  200],   // µg/m³
-  nh3:    [200, 1000, 1500],  // µg/m³
-  ch4:    [1000,5000, 25000], // ppm
-  h2:     [500, 2000, 10000], // ppm
-  ethanol:[100, 500,  1000],  // ppm
-  rh:     [60,  70,   80],    // % (above-comfort thresholds)
-  so2:    [35,  75,   185],   // ppb (EPA AQI breakpoints)
-  o3:     [54,  70,   85],    // ppb (EPA 8-hour AQI breakpoints)
-  co:     [4.4, 9.4,  12.4], // ppm (EPA AQI breakpoints)
+  pm1:    [10,  25,   50],
+  pm25:   [12,  35,   55],
+  pm4:    [12,  35,   55],
+  pm10:   [50,  100,  150],
+  voc:    [150, 250,  400],
+  co2:    [800, 1000, 1500],
+  no2:    [40,  100,  200],
+  nh3:    [200, 1000, 1500],
+  ch4:    [1000,5000, 25000],
+  h2:     [500, 2000, 10000],
+  ethanol:[100, 500,  1000],
+  rh:     [60,  70,   80],
+  so2:    [35,  75,   185],
+  o3:     [54,  70,   85],
+  co:     [4.4, 9.4,  12.4],
 };
 
 const SCORE_BANDS = [
@@ -128,6 +145,80 @@ const TILE_DEFS = [
   { key: 'co',      cfgKey: 'co_entity',      label: 'CO',     unit: 'ppm'   },
 ];
 
+const CARD_CSS = `
+  :host { display: block; }
+  ha-card {
+    background: var(--ha-card-background, #1c1c1e);
+    color: var(--primary-text-color, #fff);
+    border-radius: var(--ha-card-border-radius, 12px);
+    padding: 16px;
+    box-sizing: border-box;
+    font-family: var(--primary-font-family, sans-serif);
+    overflow: hidden;
+  }
+  .top { display: flex; align-items: center; gap: 20px; margin-bottom: 14px; }
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .score-label { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
+  .right { flex: 1; min-width: 0; }
+  .graph-slot { width: 100%; }
+  .graph-slot mini-graph-card {
+    --ha-card-background: transparent;
+    --ha-card-box-shadow: none;
+    --ha-card-border-radius: 0;
+    display: block;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 100px));
+    gap: 8px;
+    justify-content: center;
+  }
+  .tile {
+    background: var(--secondary-background-color, #2c2c2e);
+    border-radius: 10px;
+    padding: 8px 6px 6px;
+    text-align: center;
+    min-width: 0;
+    cursor: pointer;
+  }
+  .tile > * { pointer-events: none; }
+  .tile-lbl { font-size: 11px; color: var(--secondary-text-color, #aaa); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile-val { font-size: 15px; font-weight: 700; margin: 3px 0 1px; line-height: 1; }
+  .tile-unit { font-size: 9px; color: var(--secondary-text-color, #aaa); }
+  .tile-status { font-size: 9px; margin-bottom: 5px; line-height: 1.2; }
+  .bar-bg { background: var(--divider-color, #3a3a3a); border-radius: 3px; height: 3px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
+  .na { color: var(--secondary-text-color, #aaa); }
+  .card-name { font-size: 13px; font-weight: 600; color: var(--secondary-text-color, #aaa); letter-spacing: 0.3px; margin-bottom: 10px; }
+  .climate-vals { display: flex; gap: 32px; margin-bottom: 2px; justify-content: center; }
+  .climate-val { display: flex; flex-direction: column; align-items: center; }
+  .climate-val-label { font-size: 11px; color: var(--secondary-text-color, #aaa); }
+  .climate-val-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
+`;
+
+const EDITOR_CSS = `
+  :host { display: block; }
+  ha-form { display: block; }
+  .tiles-section { padding: 8px 16px 12px; }
+  .tiles-header { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, #2c2c2e); overflow: hidden; }
+  .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
+  .tile-row.dragging  { opacity: 0.3; }
+  .tile-row-header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; }
+  .tile-grip { color: var(--secondary-text-color); font-size: 16px; cursor: grab; user-select: none; flex-shrink: 0; }
+  .tile-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .tile-row-btns { display: flex; gap: 2px; }
+  .tile-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 11px; padding: 3px 5px; border-radius: 3px; line-height: 1; }
+  .tile-btn:hover:not([disabled]) { color: var(--primary-text-color); background: var(--divider-color, #3a3a3a); }
+  .tile-btn[disabled] { opacity: 0.3; cursor: default; }
+  .tile-btn.active { color: var(--primary-color, #03a9f4); }
+  .tile-btn.remove { color: var(--error-color, #c62828); }
+  .tile-settings { border-top: 1px solid var(--divider-color, #3a3a3a); padding: 4px 0; }
+  .add-tile-row { margin-top: 8px; }
+  .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, #2c2c2e); color: var(--primary-text-color, #fff); border: 1px solid var(--divider-color, #3a3a3a); font-size: 13px; cursor: pointer; }
+  .add-tile-select:hover { border-color: var(--primary-color, #03a9f4); }
+`;
+
 // ── AirQualityCard ────────────────────────────────────────────────────────────
 
 class AirQualityCard extends LitElement {
@@ -136,85 +227,20 @@ class AirQualityCard extends LitElement {
     _config: { attribute: false },
   };
 
-  static styles = css`
-    :host { display: block; }
-
-    ha-card {
-      background: var(--ha-card-background, #1c1c1e);
-      color: var(--primary-text-color, #fff);
-      border-radius: var(--ha-card-border-radius, 12px);
-      padding: 16px;
-      box-sizing: border-box;
-      font-family: var(--primary-font-family, sans-serif);
-      overflow: hidden;
-    }
-
-    .top { display: flex; align-items: center; gap: 20px; margin-bottom: 14px; }
-
-    .gauge-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-
-    .score-label { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
-
-    .right { flex: 1; min-width: 0; }
-
-    .graph-slot { width: 100%; }
-
-    .graph-slot mini-graph-card {
-      --ha-card-background: transparent;
-      --ha-card-box-shadow: none;
-      --ha-card-border-radius: 0;
-      display: block;
-    }
-
-    .tiles {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(72px, 100px));
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .tile {
-      background: var(--secondary-background-color, #2c2c2e);
-      border-radius: 10px;
-      padding: 8px 6px 6px;
-      text-align: center;
-      min-width: 0;
-      cursor: pointer;
-    }
-
-    .tile > * { pointer-events: none; }
-
-    .tile-lbl { font-size: 11px; color: var(--secondary-text-color, #aaa); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    .tile-val { font-size: 15px; font-weight: 700; margin: 3px 0 1px; line-height: 1; }
-
-    .tile-unit { font-size: 9px; color: var(--secondary-text-color, #aaa); }
-
-    .tile-status { font-size: 9px; margin-bottom: 5px; line-height: 1.2; }
-
-    .bar-bg { background: var(--divider-color, #3a3a3a); border-radius: 3px; height: 3px; overflow: hidden; }
-
-    .bar { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
-
-    .na { color: var(--secondary-text-color, #aaa); }
-
-    .card-name { font-size: 13px; font-weight: 600; color: var(--secondary-text-color, #aaa); letter-spacing: 0.3px; margin-bottom: 10px; }
-
-    .climate-vals { display: flex; gap: 32px; margin-bottom: 2px; justify-content: center; }
-
-    .climate-val { display: flex; flex-direction: column; align-items: center; }
-
-    .climate-val-label { font-size: 11px; color: var(--secondary-text-color, #aaa); }
-
-    .climate-val-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
-  `;
-
   static getConfigElement() {
     return document.createElement('air-quality-card-editor');
   }
 
   static getStubConfig() {
     return { show_name: true, tile_tap_enabled: true };
+  }
+
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    const s = document.createElement('style');
+    s.textContent = CARD_CSS;
+    root.appendChild(s);
+    return root;
   }
 
   setConfig(config) {
@@ -263,21 +289,16 @@ class AirQualityCard extends LitElement {
     return '';
   }
 
-  _graphConfig() {
+  _setupMiniGraphCard() {
+    const mgc = this.shadowRoot?.querySelector('mini-graph-card');
+    if (!mgc) return;
     const cfg = this._config;
     const entities = [];
     if (cfg.temperature_entity) entities.push({ entity: cfg.temperature_entity, name: 'Temperature', color: '#ffb300' });
     if (cfg.humidity_entity)    entities.push({ entity: cfg.humidity_entity,    name: 'Humidity',    color: '#42a5f5' });
-    if (!entities.length) return null;
-    return { entities, hours_to_show: 24, line_width: 2, font_size: 85, height: 80, fill: false,
+    if (!entities.length) return;
+    const graphCfg = { entities, hours_to_show: 24, line_width: 2, font_size: 85, height: 80, fill: false,
       show: { icon: false, name: false, state: false, legend: false, labels: false } };
-  }
-
-  _setupMiniGraphCard() {
-    const mgc = this.shadowRoot?.querySelector('mini-graph-card');
-    if (!mgc) return;
-    const graphCfg = this._graphConfig();
-    if (!graphCfg) return;
     const configure = () => {
       customElements.upgrade(mgc);
       try { mgc.setConfig(graphCfg); } catch (_) { mgc.config = graphCfg; }
@@ -393,20 +414,6 @@ class AirQualityCard extends LitElement {
 
 // ── AirQualityCardEditor ──────────────────────────────────────────────────────
 
-const DEVICE_CLASS_MAP = {
-  aqi:                              'aqi_entity',
-  pm1:                              'pm1_entity',
-  pm25:                             'pm25_entity',
-  pm4:                              'pm4_entity',
-  pm10:                             'pm10_entity',
-  volatile_organic_compounds_index: 'voc_entity',
-  volatile_organic_compounds:       'voc_entity',
-  carbon_dioxide:                   'co2_entity',
-  nitrogen_dioxide:                 'no2_entity',
-  temperature:                      'temperature_entity',
-  humidity:                         'humidity_entity',
-};
-
 const GENERAL_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
   { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                                         selector: { boolean: {} } },
@@ -427,28 +434,13 @@ class AirQualityCardEditor extends LitElement {
     _dragOver:     { state: true },
   };
 
-  static styles = css`
-    :host { display: block; }
-    ha-form { display: block; }
-    .tiles-section { padding: 8px 16px 12px; }
-    .tiles-header { font-size: 12px; font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-    .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, #2c2c2e); overflow: hidden; }
-    .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
-    .tile-row.dragging  { opacity: 0.3; }
-    .tile-row-header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; }
-    .tile-grip { color: var(--secondary-text-color); font-size: 16px; cursor: grab; user-select: none; flex-shrink: 0; }
-    .tile-name { flex: 1; font-size: 13px; font-weight: 600; }
-    .tile-row-btns { display: flex; gap: 2px; }
-    .tile-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 11px; padding: 3px 5px; border-radius: 3px; line-height: 1; }
-    .tile-btn:hover:not([disabled]) { color: var(--primary-text-color); background: var(--divider-color, #3a3a3a); }
-    .tile-btn[disabled] { opacity: 0.3; cursor: default; }
-    .tile-btn.active { color: var(--primary-color, #03a9f4); }
-    .tile-btn.remove { color: var(--error-color, #c62828); }
-    .tile-settings { border-top: 1px solid var(--divider-color, #3a3a3a); padding: 4px 0; }
-    .add-tile-row { margin-top: 8px; }
-    .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, #2c2c2e); color: var(--primary-text-color, #fff); border: 1px solid var(--divider-color, #3a3a3a); font-size: 13px; cursor: pointer; }
-    .add-tile-select:hover { border-color: var(--primary-color, #03a9f4); }
-  `;
+  createRenderRoot() {
+    const root = super.createRenderRoot();
+    const s = document.createElement('style');
+    s.textContent = EDITOR_CSS;
+    root.appendChild(s);
+    return root;
+  }
 
   setConfig(config) { this._config = { ...config }; }
 
@@ -527,10 +519,6 @@ class AirQualityCardEditor extends LitElement {
     this._updateConfig({ tile_order: [...current, key] });
   }
 
-  _setTileEntity(cfgKey, entityId) {
-    this._updateConfig({ [cfgKey]: entityId || '' });
-  }
-
   _onDrop(targetKey) {
     if (!this._dragSrc || this._dragSrc === targetKey) return;
     const order = this._editorTiles().map(t => t.key);
@@ -586,7 +574,7 @@ class AirQualityCardEditor extends LitElement {
           .data=${{ entity: cfg[t.cfgKey] || '' }}
           .hass=${this._hass}
           .computeLabel=${(s) => s.label}
-          @value-changed=${(e) => this._setTileEntity(t.cfgKey, e.detail.value.entity)}
+          @value-changed=${(e) => this._updateConfig({ [t.cfgKey]: e.detail.value.entity || '' })}
         ></ha-form>
         ${isExpanded ? html`
           <div class="tile-settings">
@@ -634,14 +622,5 @@ class AirQualityCardEditor extends LitElement {
 
 customElements.define('air-quality-card', AirQualityCard);
 customElements.define('air-quality-card-editor', AirQualityCardEditor);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'air-quality-card',
-  name: 'Air Quality Card',
-  description: 'Composite air quality score with pollutant tiles and trend graphs',
-  preview: true,
-  documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
-});
 
 })(); // end async IIFE
