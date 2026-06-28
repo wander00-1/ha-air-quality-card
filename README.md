@@ -21,10 +21,14 @@ A HACS-compatible Lovelace card that displays a composite air quality score, pol
 
 ### HACS (recommended)
 
-1. In HACS → Frontend, click the three-dot menu → **Custom repositories**
-2. Add `https://github.com/wander00-1/ha-air-quality-card` as type **Dashboard**
-3. Install **Air Quality Card**
-4. Reload your browser
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=wander00-1&repository=ha-air-quality-card&category=dashboard)
+
+This card is available in the default HACS store:
+
+1. In HACS, search for **Air Quality Card**
+2. Install it and reload your browser
+
+Or click the badge above to open it directly in HACS.
 
 ### Manual
 
