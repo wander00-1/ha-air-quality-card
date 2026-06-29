@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-06-29
+
+### Fixed
+- AQI gauge ring now scales correctly for native AQI entities (0–500 range) — previously any value ≥ 100 filled the entire ring, making Moderate, Poor, and Bad visually identical
+
 ## [1.1.0] - 2026-06-28
 
 ### Added
