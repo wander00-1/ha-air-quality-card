@@ -322,10 +322,12 @@ class AirQualityCard extends LitElement {
     this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
   }
 
-  _renderGauge(score, color) {
+  _renderGauge(score, color, maxScore = 100) {
     const r = 48, cx = 60, cy = 60, C = 2 * Math.PI * r;
     const unavail = score === null;
-    const filled = unavail ? 0 : Math.min((score / 100) * C, C);
+    // Native AQI runs 0–500, computed score 0–100 — scale the ring to whichever
+    // range is active so the fill matches the band, not just a fixed 100 ceiling.
+    const filled = unavail ? 0 : Math.min((score / maxScore) * C, C);
     // Keep this as a flat template — nesting html`<circle>` inside SVG creates it
     // in HTML namespace (not SVG), making it invisible.
     return html`
@@ -378,10 +380,11 @@ class AirQualityCard extends LitElement {
     const vocVal    = this._stateVal(cfg.voc_entity);
     const co2Val    = this._stateVal(cfg.co2_entity);
     const hasScore  = nativeAqi !== null || pm25Val !== null;
-    let score = null, scoreLabel = 'Unavailable', scoreColor = 'var(--secondary-text-color, #aaa)';
+    let score = null, scoreLabel = 'Unavailable', scoreColor = 'var(--secondary-text-color, #aaa)', maxScore = 100;
     if (hasScore) {
       const useNative = nativeAqi !== null;
       score = useNative ? Math.round(Math.min(500, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
+      maxScore = useNative ? 500 : 100;
       const band = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
       scoreLabel = band.label; scoreColor = band.color;
     }
@@ -396,7 +399,7 @@ class AirQualityCard extends LitElement {
         ${showName ? html`<div class="card-name">${name}</div>` : ''}
         <div class="top">
           <div class="gauge-wrap">
-            ${this._renderGauge(score, scoreColor)}
+            ${this._renderGauge(score, scoreColor, maxScore)}
             <div class="score-label" style="color:${scoreColor}">${scoreLabel}</div>
           </div>
           <div class="right">
