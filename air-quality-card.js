@@ -1,16 +1,42 @@
 'use strict';
 
-// Synchronous — Lovelace scans window.customCards at page load.
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'air-quality-card',
-  name: 'Air Quality Card',
-  description: 'Composite air quality score with pollutant tiles and trend graphs',
-  preview: true,
-  documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
-});
+// ── Pure helpers (module scope so the unit tests can require them) ─────────────
+
+// Only entity-id config keys point at hass.states; other string values (name,
+// tile labels, units, device_id) would compare states[undefined] and never
+// signal a change — filtering by key keeps the intent explicit and avoids
+// future collisions if a non-entity string ever equalled a real entity id.
+function watchedEntityIds(config) {
+  return Object.entries(config)
+    .filter(([k, v]) => k.endsWith('_entity') && typeof v === 'string' && v)
+    .map(([, v]) => v);
+}
+
+// HA hands us a fresh state object whenever an entity changes, so a reference
+// compare is enough. A missing previous hass (first paint) always counts as
+// changed.
+function hassStatesChanged(ids, newHass, oldHass) {
+  return !oldHass || ids.some(id => newHass.states[id] !== oldHass.states[id]);
+}
+
+// Browser bootstrap. Guarded so the file can be require()'d under Node for unit
+// testing without a DOM — in Node there is no window/customElements, so we skip
+// straight past registration and only the pure helpers above get exported.
+if (typeof window !== 'undefined') {
+  // Synchronous — Lovelace scans window.customCards at page load.
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: 'air-quality-card',
+    name: 'Air Quality Card',
+    description: 'Composite air quality score with pollutant tiles and trend graphs',
+    preview: true,
+    documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
+  });
+}
 
 (async () => {
+
+if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
 
 await customElements.whenDefined('home-assistant-main');
 
@@ -259,9 +285,8 @@ class AirQualityCard extends LitElement {
 
   set hass(hass) {
     if (!this._config) return;
-    const ids = Object.values(this._config).filter(v => typeof v === 'string' && v);
-    const changed = !this._hass || ids.some(id => hass.states[id] !== this._hass.states[id]);
-    if (changed) this._hass = hass;
+    const ids = watchedEntityIds(this._config);
+    if (hassStatesChanged(ids, hass, this._hass)) this._hass = hass;
     this.shadowRoot?.querySelectorAll('mini-graph-card').forEach(c => { c.hass = hass; });
   }
 
@@ -689,3 +714,9 @@ customElements.define('air-quality-card', AirQualityCard);
 customElements.define('air-quality-card-editor', AirQualityCardEditor);
 
 })(); // end async IIFE
+
+// Expose the pure helpers to the Node test runner. `module` is undefined in the
+// browser ES-module context, so this is a no-op there.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { watchedEntityIds, hassStatesChanged };
+}
