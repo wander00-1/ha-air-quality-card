@@ -34,37 +34,6 @@ if (typeof window !== 'undefined') {
   });
 }
 
-(async () => {
-
-if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
-
-await customElements.whenDefined('home-assistant-main');
-
-// Strategy 1: import('lit') works when HA has an importmap for it (some builds do).
-// Strategy 2: walk the prototype chain and find LitElement by its stable _$litElement$
-//   marker, then create a synthetic html that produces TemplateResult objects Lit
-//   already knows how to process (_$litType$ is explicitly unminified in Lit's build).
-let LitElement, html;
-try {
-  ({ LitElement, html } = await import('lit'));
-} catch (_) {
-  let proto = customElements.get('home-assistant-main');
-  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_$litElement$')) {
-    proto = Object.getPrototypeOf(proto);
-  }
-  LitElement = proto;
-  html = (strings, ...values) => ({ _$litType$: 1, strings, values });
-}
-
-if (!LitElement || !html) {
-  console.error('[air-quality-card] Could not load LitElement from HA — minimum HA 2023.9 required.');
-  return;
-}
-
-// Styles are injected via createRenderRoot() on each class so we never need
-// the css tagged-template function (its CSSResult class is inaccessible from
-// outside HA's module closure on most builds).
-
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 const THRESHOLDS = {
@@ -127,6 +96,37 @@ function tileStatus(key, value, cfg) {
   if (value <= t3) return { idx: 2, pct: 50 + ((value - t2) / (t3 - t2)) * 25 };
   return { idx: 3, pct: 100 };
 }
+
+(async () => {
+
+if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
+
+await customElements.whenDefined('home-assistant-main');
+
+// Strategy 1: import('lit') works when HA has an importmap for it (some builds do).
+// Strategy 2: walk the prototype chain and find LitElement by its stable _$litElement$
+//   marker, then create a synthetic html that produces TemplateResult objects Lit
+//   already knows how to process (_$litType$ is explicitly unminified in Lit's build).
+let LitElement, html;
+try {
+  ({ LitElement, html } = await import('lit'));
+} catch (_) {
+  let proto = customElements.get('home-assistant-main');
+  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_$litElement$')) {
+    proto = Object.getPrototypeOf(proto);
+  }
+  LitElement = proto;
+  html = (strings, ...values) => ({ _$litType$: 1, strings, values });
+}
+
+if (!LitElement || !html) {
+  console.error('[air-quality-card] Could not load LitElement from HA — minimum HA 2023.9 required.');
+  return;
+}
+
+// Styles are injected via createRenderRoot() on each class so we never need
+// the css tagged-template function (its CSSResult class is inaccessible from
+// outside HA's module closure on most builds).
 
 function sortedTiles(config) {
   const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
@@ -718,5 +718,5 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 // Expose the pure helpers to the Node test runner. `module` is undefined in the
 // browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged };
+  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, THRESHOLDS, SCORE_BANDS, AQI_BANDS };
 }
