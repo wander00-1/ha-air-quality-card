@@ -115,6 +115,20 @@ const CHEMICAL_NAMES = {
   co:      'Carbon Monoxide',
 };
 
+function sortedTiles(config) {
+  const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
+  const order = config.tile_order || [];
+  const inOrder = order.map(k => {
+    const def = configured.find(t => t.key === k);
+    if (def) return def;
+    if (k.startsWith('custom_') && config[`${k}_entity`])
+      return { key: k, cfgKey: `${k}_entity`, label: config[`${k}_name`] || 'Custom', unit: config[`${k}_unit`] || '' };
+    return null;
+  }).filter(Boolean);
+  const rest = configured.filter(t => !order.includes(t.key));
+  return [...inOrder, ...rest];
+}
+
 const TILE_DEFS = [
   { key: 'pm1',     cfgKey: 'pm1_entity',     label: 'PM1.0',  unit: 'µg/m³' },
   { key: 'pm25',    cfgKey: 'pm25_entity',    label: 'PM2.5',  unit: 'µg/m³' },
@@ -163,20 +177,6 @@ if (!LitElement || !html) {
 // Styles are injected via createRenderRoot() on each class so we never need
 // the css tagged-template function (its CSSResult class is inaccessible from
 // outside HA's module closure on most builds).
-
-function sortedTiles(config) {
-  const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
-  const order = config.tile_order || [];
-  const inOrder = order.map(k => {
-    const def = configured.find(t => t.key === k);
-    if (def) return def;
-    if (k.startsWith('custom_') && config[`${k}_entity`])
-      return { key: k, cfgKey: `${k}_entity`, label: config[`${k}_name`] || 'Custom', unit: config[`${k}_unit`] || '' };
-    return null;
-  }).filter(Boolean);
-  const rest = configured.filter(t => !order.includes(t.key));
-  return [...inOrder, ...rest];
-}
 
 const CARD_CSS = `
   :host { display: block; }
@@ -718,5 +718,5 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 // Expose the pure helpers to the Node test runner. `module` is undefined in the
 // browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
+  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
 }
