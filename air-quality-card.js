@@ -21,7 +21,7 @@ function hassStatesChanged(ids, newHass, oldHass) {
 
 // Browser bootstrap. Guarded so the file can be require()'d under Node for unit
 // testing without a DOM — in Node there is no window/customElements, so we skip
-// straight past registration and only the pure helpers above get exported.
+// straight past registration and only the module-level exports are accessible.
 if (typeof window !== 'undefined') {
   // Synchronous — Lovelace scans window.customCards at page load.
   window.customCards = window.customCards || [];
@@ -715,8 +715,8 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 
 })(); // end async IIFE
 
-// Expose the pure helpers to the Node test runner. `module` is undefined in the
-// browser ES-module context, so this is a no-op there.
+// Expose module-level exports to the Node test runner. `module` is undefined in
+// the browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
 }
