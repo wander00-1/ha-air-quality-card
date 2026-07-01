@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-07-01
+
+### Fixed
+- Hass change-detection now correctly watches only `_entity` config keys — previously all string config values were scanned, which could cause spurious re-renders if a label or name happened to match a real entity ID
+
 ## [1.1.1] - 2026-06-29
 
 ### Fixed
