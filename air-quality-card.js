@@ -97,6 +97,42 @@ function tileStatus(key, value, cfg) {
   return { idx: 3, pct: 100 };
 }
 
+const CHEMICAL_NAMES = {
+  pm1:     'Particulate 1.0µm',
+  pm25:    'Particulate 2.5µm',
+  pm4:     'Particulate 4.0µm',
+  pm10:    'Particulate 10µm',
+  voc:     'Organics',
+  co2:     'Carbon Dioxide',
+  no2:     'Nitrogen Dioxide',
+  nh3:     'Ammonia',
+  ch4:     'Methane',
+  h2:      'Hydrogen',
+  ethanol: 'Ethanol',
+  rh:      'Relative Humidity',
+  so2:     'Sulphur Dioxide',
+  o3:      'Ozone',
+  co:      'Carbon Monoxide',
+};
+
+const TILE_DEFS = [
+  { key: 'pm1',     cfgKey: 'pm1_entity',     label: 'PM1.0',  unit: 'µg/m³' },
+  { key: 'pm25',    cfgKey: 'pm25_entity',    label: 'PM2.5',  unit: 'µg/m³' },
+  { key: 'pm4',     cfgKey: 'pm4_entity',     label: 'PM4.0',  unit: 'µg/m³' },
+  { key: 'pm10',    cfgKey: 'pm10_entity',    label: 'PM10',   unit: 'µg/m³' },
+  { key: 'voc',     cfgKey: 'voc_entity',     label: 'VOC',    unit: 'idx'   },
+  { key: 'co2',     cfgKey: 'co2_entity',     label: 'CO₂',    unit: 'ppm'   },
+  { key: 'no2',     cfgKey: 'no2_entity',     label: 'NO₂',    unit: 'µg/m³' },
+  { key: 'nh3',     cfgKey: 'nh3_entity',     label: 'NH₃',    unit: 'µg/m³' },
+  { key: 'ch4',     cfgKey: 'ch4_entity',     label: 'CH₄',    unit: 'ppm'   },
+  { key: 'h2',      cfgKey: 'h2_entity',      label: 'H₂',     unit: 'ppm'   },
+  { key: 'ethanol', cfgKey: 'ethanol_entity', label: 'C₂H₅OH', unit: 'ppm'   },
+  { key: 'rh',      cfgKey: 'rh_entity',      label: 'RH',     unit: '%'     },
+  { key: 'so2',     cfgKey: 'so2_entity',     label: 'SO₂',    unit: 'ppb'   },
+  { key: 'o3',      cfgKey: 'o3_entity',      label: 'O₃',     unit: 'ppb'   },
+  { key: 'co',      cfgKey: 'co_entity',      label: 'CO',     unit: 'ppm'   },
+];
+
 (async () => {
 
 if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
@@ -141,42 +177,6 @@ function sortedTiles(config) {
   const rest = configured.filter(t => !order.includes(t.key));
   return [...inOrder, ...rest];
 }
-
-const CHEMICAL_NAMES = {
-  pm1:     'Particulate 1.0µm',
-  pm25:    'Particulate 2.5µm',
-  pm4:     'Particulate 4.0µm',
-  pm10:    'Particulate 10µm',
-  voc:     'Organics',
-  co2:     'Carbon Dioxide',
-  no2:     'Nitrogen Dioxide',
-  nh3:     'Ammonia',
-  ch4:     'Methane',
-  h2:      'Hydrogen',
-  ethanol: 'Ethanol',
-  rh:      'Relative Humidity',
-  so2:     'Sulphur Dioxide',
-  o3:      'Ozone',
-  co:      'Carbon Monoxide',
-};
-
-const TILE_DEFS = [
-  { key: 'pm1',     cfgKey: 'pm1_entity',     label: 'PM1.0',  unit: 'µg/m³' },
-  { key: 'pm25',    cfgKey: 'pm25_entity',    label: 'PM2.5',  unit: 'µg/m³' },
-  { key: 'pm4',     cfgKey: 'pm4_entity',     label: 'PM4.0',  unit: 'µg/m³' },
-  { key: 'pm10',    cfgKey: 'pm10_entity',    label: 'PM10',   unit: 'µg/m³' },
-  { key: 'voc',     cfgKey: 'voc_entity',     label: 'VOC',    unit: 'idx'   },
-  { key: 'co2',     cfgKey: 'co2_entity',     label: 'CO₂',    unit: 'ppm'   },
-  { key: 'no2',     cfgKey: 'no2_entity',     label: 'NO₂',    unit: 'µg/m³' },
-  { key: 'nh3',     cfgKey: 'nh3_entity',     label: 'NH₃',    unit: 'µg/m³' },
-  { key: 'ch4',     cfgKey: 'ch4_entity',     label: 'CH₄',    unit: 'ppm'   },
-  { key: 'h2',      cfgKey: 'h2_entity',      label: 'H₂',     unit: 'ppm'   },
-  { key: 'ethanol', cfgKey: 'ethanol_entity', label: 'C₂H₅OH', unit: 'ppm'   },
-  { key: 'rh',      cfgKey: 'rh_entity',      label: 'RH',     unit: '%'     },
-  { key: 'so2',     cfgKey: 'so2_entity',     label: 'SO₂',    unit: 'ppb'   },
-  { key: 'o3',      cfgKey: 'o3_entity',      label: 'O₃',     unit: 'ppb'   },
-  { key: 'co',      cfgKey: 'co_entity',      label: 'CO',     unit: 'ppm'   },
-];
 
 const CARD_CSS = `
   :host { display: block; }
@@ -718,5 +718,5 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 // Expose the pure helpers to the Node test runner. `module` is undefined in the
 // browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, THRESHOLDS, SCORE_BANDS, AQI_BANDS };
+  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
 }
