@@ -1,0 +1,9 @@
+{
+  "name": "ha-air-quality-card",
+  "version": "1.1.1",
+  "description": "Home Assistant Lovelace air quality card",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
