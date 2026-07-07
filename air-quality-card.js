@@ -181,8 +181,8 @@ if (!LitElement || !html) {
 const CARD_CSS = `
   :host { display: block; }
   ha-card {
-    background: var(--ha-card-background, #1c1c1e);
-    color: var(--primary-text-color, #fff);
+    background: var(--ha-card-background);
+    color: var(--primary-text-color);
     border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;
     box-sizing: border-box;
@@ -207,7 +207,7 @@ const CARD_CSS = `
     justify-content: center;
   }
   .tile {
-    background: var(--secondary-background-color, #2c2c2e);
+    background: var(--secondary-background-color, rgba(0,0,0,0.04));
     border-radius: 10px;
     padding: 8px 6px 6px;
     text-align: center;
@@ -219,7 +219,7 @@ const CARD_CSS = `
   .tile-val { font-size: 15px; font-weight: 700; margin: 3px 0 1px; line-height: 1; }
   .tile-unit { font-size: 9px; color: var(--secondary-text-color, #aaa); }
   .tile-status { font-size: 9px; margin-bottom: 5px; line-height: 1.2; }
-  .bar-bg { background: var(--divider-color, #3a3a3a); border-radius: 3px; height: 3px; overflow: hidden; }
+  .bar-bg { background: var(--divider-color, rgba(0,0,0,0.12)); border-radius: 3px; height: 3px; overflow: hidden; }
   .bar { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
   .na { color: var(--secondary-text-color, #aaa); }
   .card-name { font-size: 13px; font-weight: 600; color: var(--secondary-text-color, #aaa); letter-spacing: 0.3px; margin-bottom: 10px; }
@@ -232,10 +232,10 @@ const CARD_CSS = `
 const EDITOR_CSS = `
   :host { display: block; }
   ha-form { display: block; }
-  .section-header { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); padding: 16px 16px 0; border-top: 1px solid var(--divider-color, #3a3a3a); margin-top: 8px; }
+  .section-header { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); padding: 16px 16px 0; border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12)); margin-top: 8px; }
   .section-header:first-child { border-top: none; margin-top: 0; padding-top: 8px; }
   .tiles-section { padding: 8px 16px 12px; }
-  .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, #2c2c2e); overflow: hidden; }
+  .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, rgba(0,0,0,0.04)); overflow: hidden; }
   .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
   .tile-row.dragging  { opacity: 0.3; }
   .tile-row-header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; }
@@ -243,14 +243,14 @@ const EDITOR_CSS = `
   .tile-name { flex: 1; font-size: 13px; font-weight: 600; }
   .tile-row-btns { display: flex; gap: 2px; }
   .tile-btn { background: none; border: none; color: var(--secondary-text-color); cursor: pointer; font-size: 11px; padding: 3px 5px; border-radius: 3px; line-height: 1; }
-  .tile-btn:hover:not([disabled]) { color: var(--primary-text-color); background: var(--divider-color, #3a3a3a); }
+  .tile-btn:hover:not([disabled]) { color: var(--primary-text-color); background: var(--divider-color, rgba(0,0,0,0.12)); }
   .tile-btn[disabled] { opacity: 0.3; cursor: default; }
   .tile-btn.active { color: var(--primary-color, #03a9f4); }
   .tile-btn.remove { color: var(--error-color, #c62828); }
   .tile-btn.settings { font-size: 15px; padding: 2px 5px; }
-  .tile-settings { border-top: 1px solid var(--divider-color, #3a3a3a); padding: 4px 0; }
+  .tile-settings { border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12)); padding: 4px 0; }
   .add-tile-row { margin-top: 8px; }
-  .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, #2c2c2e); color: var(--primary-text-color, #fff); border: 1px solid var(--divider-color, #3a3a3a); font-size: 13px; cursor: pointer; }
+  .add-tile-select { width: 100%; padding: 8px; border-radius: 6px; background: var(--secondary-background-color, rgba(0,0,0,0.04)); color: var(--primary-text-color); border: 1px solid var(--divider-color, rgba(0,0,0,0.12)); font-size: 13px; cursor: pointer; }
   .add-tile-select:hover { border-color: var(--primary-color, #03a9f4); }
 `;
 
@@ -357,7 +357,7 @@ class AirQualityCard extends LitElement {
     // in HTML namespace (not SVG), making it invisible.
     return html`
       <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--divider-color,#3a3a3a)" stroke-width="10"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--divider-color, rgba(0,0,0,0.12))" stroke-width="10"/>
         <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
           stroke="${color}" stroke-width="10"
           stroke-dasharray="${filled.toFixed(2)} ${C.toFixed(2)}"
@@ -380,7 +380,7 @@ class AirQualityCard extends LitElement {
     if (val === null) {
       valContent = html`<span class="na">—</span>`;
       statusText = 'Unavailable'; statusColor = 'var(--secondary-text-color, #aaa)';
-      barWidth = '0%'; barBg = '#3a3a3a';
+      barWidth = '0%'; barBg = 'var(--divider-color, rgba(0,0,0,0.12))';
     } else {
       const { idx, pct } = tileStatus(t.key, val, cfg);
       statusText = STATUS_LABELS[idx]; statusColor = STATUS_COLORS[idx];

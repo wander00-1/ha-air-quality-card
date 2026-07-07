@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-07-08
+
+### Fixed
+- CSS fallback colours are now theme-neutral — dark hex fallbacks (`#1c1c1e`, `#2c2c2e`, `#3a3a3a`, `#fff`) broke contrast on HA light themes. Fallbacks for card background and primary text are removed (trusting HA's guaranteed variables); tile and divider fallbacks use semi-transparent neutrals (`rgba(0,0,0,0.04)` / `rgba(0,0,0,0.12)`) that work on both light and dark.
+
 ## [1.1.2] - 2026-07-01
 
 ### Fixed
