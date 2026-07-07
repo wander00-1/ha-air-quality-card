@@ -21,7 +21,7 @@ function hassStatesChanged(ids, newHass, oldHass) {
 
 // Browser bootstrap. Guarded so the file can be require()'d under Node for unit
 // testing without a DOM — in Node there is no window/customElements, so we skip
-// straight past registration and only the pure helpers above get exported.
+// straight past registration and only the module-level exports are accessible.
 if (typeof window !== 'undefined') {
   // Synchronous — Lovelace scans window.customCards at page load.
   window.customCards = window.customCards || [];
@@ -33,37 +33,6 @@ if (typeof window !== 'undefined') {
     documentationURL: 'https://github.com/wander00-1/ha-air-quality-card',
   });
 }
-
-(async () => {
-
-if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
-
-await customElements.whenDefined('home-assistant-main');
-
-// Strategy 1: import('lit') works when HA has an importmap for it (some builds do).
-// Strategy 2: walk the prototype chain and find LitElement by its stable _$litElement$
-//   marker, then create a synthetic html that produces TemplateResult objects Lit
-//   already knows how to process (_$litType$ is explicitly unminified in Lit's build).
-let LitElement, html;
-try {
-  ({ LitElement, html } = await import('lit'));
-} catch (_) {
-  let proto = customElements.get('home-assistant-main');
-  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_$litElement$')) {
-    proto = Object.getPrototypeOf(proto);
-  }
-  LitElement = proto;
-  html = (strings, ...values) => ({ _$litType$: 1, strings, values });
-}
-
-if (!LitElement || !html) {
-  console.error('[air-quality-card] Could not load LitElement from HA — minimum HA 2023.9 required.');
-  return;
-}
-
-// Styles are injected via createRenderRoot() on each class so we never need
-// the css tagged-template function (its CSSResult class is inaccessible from
-// outside HA's module closure on most builds).
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -128,20 +97,6 @@ function tileStatus(key, value, cfg) {
   return { idx: 3, pct: 100 };
 }
 
-function sortedTiles(config) {
-  const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
-  const order = config.tile_order || [];
-  const inOrder = order.map(k => {
-    const def = configured.find(t => t.key === k);
-    if (def) return def;
-    if (k.startsWith('custom_') && config[`${k}_entity`])
-      return { key: k, cfgKey: `${k}_entity`, label: config[`${k}_name`] || 'Custom', unit: config[`${k}_unit`] || '' };
-    return null;
-  }).filter(Boolean);
-  const rest = configured.filter(t => !order.includes(t.key));
-  return [...inOrder, ...rest];
-}
-
 const CHEMICAL_NAMES = {
   pm1:     'Particulate 1.0µm',
   pm25:    'Particulate 2.5µm',
@@ -160,6 +115,20 @@ const CHEMICAL_NAMES = {
   co:      'Carbon Monoxide',
 };
 
+function sortedTiles(config) {
+  const configured = TILE_DEFS.filter(t => config[t.cfgKey]);
+  const order = config.tile_order || [];
+  const inOrder = order.map(k => {
+    const def = configured.find(t => t.key === k);
+    if (def) return def;
+    if (k.startsWith('custom_') && config[`${k}_entity`])
+      return { key: k, cfgKey: `${k}_entity`, label: config[`${k}_name`] || 'Custom', unit: config[`${k}_unit`] || '' };
+    return null;
+  }).filter(Boolean);
+  const rest = configured.filter(t => !order.includes(t.key));
+  return [...inOrder, ...rest];
+}
+
 const TILE_DEFS = [
   { key: 'pm1',     cfgKey: 'pm1_entity',     label: 'PM1.0',  unit: 'µg/m³' },
   { key: 'pm25',    cfgKey: 'pm25_entity',    label: 'PM2.5',  unit: 'µg/m³' },
@@ -177,6 +146,37 @@ const TILE_DEFS = [
   { key: 'o3',      cfgKey: 'o3_entity',      label: 'O₃',     unit: 'ppb'   },
   { key: 'co',      cfgKey: 'co_entity',      label: 'CO',     unit: 'ppm'   },
 ];
+
+(async () => {
+
+if (typeof customElements === 'undefined') return; // Node/test environment — nothing to register.
+
+await customElements.whenDefined('home-assistant-main');
+
+// Strategy 1: import('lit') works when HA has an importmap for it (some builds do).
+// Strategy 2: walk the prototype chain and find LitElement by its stable _$litElement$
+//   marker, then create a synthetic html that produces TemplateResult objects Lit
+//   already knows how to process (_$litType$ is explicitly unminified in Lit's build).
+let LitElement, html;
+try {
+  ({ LitElement, html } = await import('lit'));
+} catch (_) {
+  let proto = customElements.get('home-assistant-main');
+  while (proto && !Object.prototype.hasOwnProperty.call(proto, '_$litElement$')) {
+    proto = Object.getPrototypeOf(proto);
+  }
+  LitElement = proto;
+  html = (strings, ...values) => ({ _$litType$: 1, strings, values });
+}
+
+if (!LitElement || !html) {
+  console.error('[air-quality-card] Could not load LitElement from HA — minimum HA 2023.9 required.');
+  return;
+}
+
+// Styles are injected via createRenderRoot() on each class so we never need
+// the css tagged-template function (its CSSResult class is inaccessible from
+// outside HA's module closure on most builds).
 
 const CARD_CSS = `
   :host { display: block; }
@@ -715,8 +715,8 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 
 })(); // end async IIFE
 
-// Expose the pure helpers to the Node test runner. `module` is undefined in the
-// browser ES-module context, so this is a no-op there.
+// Expose module-level exports to the Node test runner. `module` is undefined in
+// the browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged };
+  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
 }
