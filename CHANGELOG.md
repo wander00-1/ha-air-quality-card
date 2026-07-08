@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Gauge, tile status, and temperature/humidity accent colours now adapt to Home Assistant's active light/dark mode (`hass.themes.darkMode`) instead of using one fixed set of hex values. The dark-mode palette is unchanged from before; a separate, higher-contrast palette is now used when HA is in light mode.
+
 ## [1.1.3] - 2026-07-08
 
 ### Fixed
