@@ -55,21 +55,30 @@ const THRESHOLDS = {
 };
 
 const SCORE_BANDS = [
-  { max: 25,  label: 'Good',     color: '#4caf50' },
-  { max: 50,  label: 'Moderate', color: '#f9a825' },
-  { max: 75,  label: 'Poor',     color: '#ef6c00' },
-  { max: 100, label: 'Bad',      color: '#c62828' },
+  { max: 25,  label: 'Good',     key: 'good' },
+  { max: 50,  label: 'Moderate', key: 'moderate' },
+  { max: 75,  label: 'Poor',     key: 'poor' },
+  { max: 100, label: 'Bad',      key: 'bad' },
 ];
 
 const AQI_BANDS = [
-  { max: 50,  label: 'Good',     color: '#4caf50' },
-  { max: 100, label: 'Moderate', color: '#f9a825' },
-  { max: 200, label: 'Poor',     color: '#ef6c00' },
-  { max: 500, label: 'Bad',      color: '#c62828' },
+  { max: 50,  label: 'Good',     key: 'good' },
+  { max: 100, label: 'Moderate', key: 'moderate' },
+  { max: 200, label: 'Poor',     key: 'poor' },
+  { max: 500, label: 'Bad',      key: 'bad' },
 ];
 
 const STATUS_LABELS = ['Good', 'Moderate', 'High', 'Very High'];
-const STATUS_COLORS = ['#4caf50', '#f9a825', '#ef6c00', '#c62828'];
+const STATUS_KEYS = ['good', 'moderate', 'poor', 'bad'];
+
+// The original hex values read fine on HA's dark theme but wash out against a
+// light card background (e.g. amber/orange on white). Rather than one fixed
+// palette, pick a set tuned per color-scheme, keyed off hass.themes.darkMode.
+const PALETTES = {
+  dark:  { good: '#4caf50', moderate: '#f9a825', poor: '#ef6c00', bad: '#c62828', temperature: '#ffb300', humidity: '#42a5f5' },
+  light: { good: '#2e7d32', moderate: '#f57f17', poor: '#d84315', bad: '#b71c1c', temperature: '#ef6c00', humidity: '#1565c0' },
+};
+function palette(dark) { return dark ? PALETTES.dark : PALETTES.light; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -260,6 +269,7 @@ class AirQualityCard extends LitElement {
   static properties = {
     _hass:   { attribute: false },
     _config: { attribute: false },
+    _dark:   { state: true },
   };
 
   static getConfigElement() {
@@ -286,6 +296,7 @@ class AirQualityCard extends LitElement {
   set hass(hass) {
     if (!this._config) return;
     const ids = watchedEntityIds(this._config);
+    this._dark = !!hass.themes?.darkMode;
     if (hassStatesChanged(ids, hass, this._hass)) this._hass = hass;
     this.shadowRoot?.querySelectorAll('mini-graph-card').forEach(c => { c.hass = hass; });
   }
@@ -293,7 +304,7 @@ class AirQualityCard extends LitElement {
   getCardSize() { return 4; }
 
   updated(changedProps) {
-    if (changedProps.has('_config')) this._setupMiniGraphCard();
+    if (changedProps.has('_config') || changedProps.has('_dark')) this._setupMiniGraphCard();
   }
 
   _stateVal(entityId) {
@@ -327,9 +338,10 @@ class AirQualityCard extends LitElement {
     const mgc = this.shadowRoot?.querySelector('mini-graph-card');
     if (!mgc) return;
     const cfg = this._config;
+    const p = palette(this._dark);
     const entities = [];
-    if (cfg.temperature_entity) entities.push({ entity: cfg.temperature_entity, name: 'Temperature', color: '#ffb300' });
-    if (cfg.humidity_entity)    entities.push({ entity: cfg.humidity_entity,    name: 'Humidity',    color: '#42a5f5' });
+    if (cfg.temperature_entity) entities.push({ entity: cfg.temperature_entity, name: 'Temperature', color: p.temperature });
+    if (cfg.humidity_entity)    entities.push({ entity: cfg.humidity_entity,    name: 'Humidity',    color: p.humidity });
     if (!entities.length) return;
     const graphCfg = { entities, hours_to_show: 24, line_width: 2, font_size: 85, height: 80, fill: false,
       show: { icon: false, name: false, state: false, legend: false, labels: false } };
@@ -374,6 +386,7 @@ class AirQualityCard extends LitElement {
 
   _renderTile(t) {
     const cfg = this._config;
+    const p = palette(this._dark);
     const val = this._stateVal(cfg[t.cfgKey]);
     const label = cfg[`${t.key}_name`] || (cfg.use_chemical_names ? (CHEMICAL_NAMES[t.key] || t.label) : t.label);
     let valContent, statusText, statusColor, barWidth, barBg;
@@ -383,8 +396,8 @@ class AirQualityCard extends LitElement {
       barWidth = '0%'; barBg = 'var(--divider-color, rgba(0,0,0,0.12))';
     } else {
       const { idx, pct } = tileStatus(t.key, val, cfg);
-      statusText = STATUS_LABELS[idx]; statusColor = STATUS_COLORS[idx];
-      barWidth = `${Math.min(100, pct).toFixed(1)}%`; barBg = STATUS_COLORS[idx];
+      statusText = STATUS_LABELS[idx]; statusColor = p[STATUS_KEYS[idx]];
+      barWidth = `${Math.min(100, pct).toFixed(1)}%`; barBg = statusColor;
       valContent = html`${val.toFixed(1)}<span class="tile-unit"> ${t.unit}</span>`;
     }
     return html`
@@ -400,6 +413,7 @@ class AirQualityCard extends LitElement {
   render() {
     if (!this._config) return html``;
     const cfg = this._config;
+    const p = palette(this._dark);
     const nativeAqi = this._stateVal(cfg.aqi_entity);
     const pm25Val   = this._stateVal(cfg.pm25_entity);
     const vocVal    = this._stateVal(cfg.voc_entity);
@@ -411,7 +425,7 @@ class AirQualityCard extends LitElement {
       score = useNative ? Math.round(Math.min(500, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
       maxScore = useNative ? 500 : 100;
       const band = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
-      scoreLabel = band.label; scoreColor = band.color;
+      scoreLabel = band.label; scoreColor = p[band.key];
     }
     const name     = this._deviceName();
     const showName = cfg.show_name !== false && !!name;
@@ -432,12 +446,12 @@ class AirQualityCard extends LitElement {
               <div class="climate-vals">
                 ${cfg.temperature_entity ? html`
                   <div class="climate-val">
-                    <span class="climate-val-label" style="color:#ffb300">Temperature</span>
+                    <span class="climate-val-label" style="color:${p.temperature}">Temperature</span>
                     <span class="climate-val-num">${tempV !== null ? `${tempV.toFixed(1)} °C` : '—'}</span>
                   </div>` : ''}
                 ${cfg.humidity_entity ? html`
                   <div class="climate-val">
-                    <span class="climate-val-label" style="color:#42a5f5">Humidity</span>
+                    <span class="climate-val-label" style="color:${p.humidity}">Humidity</span>
                     <span class="climate-val-num">${humV !== null ? `${humV.toFixed(1)} %` : '—'}</span>
                   </div>` : ''}
               </div>` : ''}
@@ -718,5 +732,5 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 // Expose module-level exports to the Node test runner. `module` is undefined in
 // the browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES };
+  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES, palette };
 }
