@@ -218,12 +218,59 @@ const CARD_CSS = `
   .tile {
     background: var(--secondary-background-color, rgba(0,0,0,0.04));
     border-radius: 10px;
-    padding: 8px 6px 6px;
     text-align: center;
     min-width: 0;
     cursor: pointer;
+    position: relative;
   }
   .tile > * { pointer-events: none; }
+  .tile-front {
+    padding: 8px 6px 6px;
+    min-height: 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: opacity 0.15s ease;
+  }
+  .tile.flipped .tile-front { opacity: 0; }
+  .tile-back {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: var(--secondary-background-color, rgba(0,0,0,0.04));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-top: 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .tile.flipped .tile-back { opacity: 1; }
+  .tile-back .tile-lbl { padding: 0 6px 2px; flex-shrink: 0; }
+  .mgc-wrap { flex: 1; min-height: 0; overflow: hidden; }
+  .mgc-wrap mini-graph-card {
+    --ha-card-background: transparent;
+    --ha-card-box-shadow: none;
+    --ha-card-border-radius: 0;
+    --ha-card-border-width: 0;
+    display: block;
+  }
+  .mgc-wrap:empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-text-color, #aaa);
+    font-size: 1.1em;
+  }
+  .mgc-wrap:empty::after { content: '—'; }
+  .tile-time-axis {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 6px 4px;
+    font-size: 9px;
+    color: var(--secondary-text-color, #aaa);
+    flex-shrink: 0;
+  }
   .tile-lbl { font-size: 11px; color: var(--secondary-text-color, #aaa); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile-val { font-size: 15px; font-weight: 700; margin: 3px 0 1px; line-height: 1; }
   .tile-unit { font-size: 9px; color: var(--secondary-text-color, #aaa); }
@@ -267,17 +314,25 @@ const EDITOR_CSS = `
 
 class AirQualityCard extends LitElement {
   static properties = {
-    _hass:   { attribute: false },
-    _config: { attribute: false },
-    _dark:   { state: true },
+    _hass:        { attribute: false },
+    _config:      { attribute: false },
+    _dark:        { state: true },
   };
+
+  _showHistory = false;
+  _historyInitialized = false;
+
+  _setHistoryView(show) {
+    this._showHistory = show;
+    this.shadowRoot?.querySelectorAll('.tile').forEach(t => t.classList.toggle('flipped', show));
+  }
 
   static getConfigElement() {
     return document.createElement('air-quality-card-editor');
   }
 
   static getStubConfig() {
-    return { show_name: true, tile_tap_enabled: true, tile_order: ['pm1', 'pm25', 'pm4', 'pm10', 'voc', 'co2'] };
+    return { show_name: true, tile_order: ['pm1', 'pm25', 'pm4', 'pm10', 'voc', 'co2'] };
   }
 
   createRenderRoot() {
@@ -291,6 +346,8 @@ class AirQualityCard extends LitElement {
   setConfig(config) {
     if (!config) return;
     this._config = config;
+    this._showHistory = false;
+    this.shadowRoot?.querySelectorAll('.tile').forEach(t => t.classList.remove('flipped'));
   }
 
   set hass(hass) {
@@ -298,13 +355,25 @@ class AirQualityCard extends LitElement {
     const ids = watchedEntityIds(this._config);
     this._dark = !!hass.themes?.darkMode;
     if (hassStatesChanged(ids, hass, this._hass)) this._hass = hass;
-    this.shadowRoot?.querySelectorAll('mini-graph-card').forEach(c => { c.hass = hass; });
+    // Only forward to the climate graph card — tile history mgcs get hass once on setup
+    this.shadowRoot?.querySelector('.graph-slot mini-graph-card') && (this.shadowRoot.querySelector('.graph-slot mini-graph-card').hass = hass);
   }
 
   getCardSize() { return 4; }
 
   updated(changedProps) {
-    if (changedProps.has('_config') || changedProps.has('_dark')) this._setupMiniGraphCard();
+    if (changedProps.has('_config') || changedProps.has('_dark')) {
+      this._setupMiniGraphCard();
+      this.shadowRoot?.querySelectorAll('.mgc-wrap[data-tile-key]').forEach(w => { w.innerHTML = ''; delete w.dataset.mgcEntity; delete w.dataset.mgcFailed; });
+      if (changedProps.has('_config')) this._historyInitialized = false;
+    }
+    if (changedProps.has('_config') || changedProps.has('_hass') || changedProps.has('_dark')) {
+      this._setupTileMiniGraphCards();
+    }
+    if (!this._historyInitialized && this._config?.tile_default === 'history') {
+      this._historyInitialized = true;
+      this._setHistoryView(true);
+    }
   }
 
   _stateVal(entityId) {
@@ -354,9 +423,62 @@ class AirQualityCard extends LitElement {
     else customElements.whenDefined('mini-graph-card').then(configure);
   }
 
-  _tileClick(entityId) {
-    if (this._config.tile_tap_enabled === false || !entityId) return;
-    this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
+  _setupTileMiniGraphCards() {
+    if (!this._config || !this._hass) return;
+    const cfg = this._config;
+    const configure = (mgc, mgcCfg) => {
+      customElements.upgrade(mgc);
+      try { mgc.setConfig(mgcCfg); } catch (_) { mgc.config = mgcCfg; }
+      mgc.hass = this._hass;
+    };
+    for (const t of sortedTiles(cfg)) {
+      const wrap = this.shadowRoot?.querySelector(`.mgc-wrap[data-tile-key="${t.key}"]`);
+      if (!wrap) continue;
+      const entityId = cfg[t.cfgKey];
+      if (!entityId) { wrap.innerHTML = ''; delete wrap.dataset.mgcEntity; delete wrap.dataset.mgcFailed; continue; }
+      if (wrap.dataset.mgcFailed) continue;
+      const st = this._hass.states[entityId];
+      if (!st || st.state === 'unavailable' || st.state === 'unknown') {
+        wrap.innerHTML = ''; delete wrap.dataset.mgcEntity; continue;
+      }
+      if (wrap.dataset.mgcEntity === entityId) continue;
+      const def = THRESHOLDS[t.key];
+      const t1 = cfg[`${t.key}_t1`] ?? def?.[0] ?? null;
+      const t2 = cfg[`${t.key}_t2`] ?? def?.[1] ?? null;
+      const t3 = cfg[`${t.key}_t3`] ?? def?.[2] ?? null;
+      const p = palette(this._dark);
+      const color_thresholds = [{ value: 0, color: p[STATUS_KEYS[0]] }];
+      if (t1 !== null) color_thresholds.push({ value: t1, color: p[STATUS_KEYS[1]] });
+      if (t2 !== null) color_thresholds.push({ value: t2, color: p[STATUS_KEYS[2]] });
+      if (t3 !== null) color_thresholds.push({ value: t3, color: p[STATUS_KEYS[3]] });
+      const mgcCfg = {
+        entities: [{ entity: entityId }],
+        hours_to_show: 24,
+        line_width: 2,
+        height: 40,
+        font_size: 75,
+        fill: false,
+        color_thresholds,
+        show: { graph: 'line', icon: false, name: false, state: false, legend: false, labels: false, points: false },
+      };
+      const mgc = document.createElement('mini-graph-card');
+      if (customElements.get('mini-graph-card')) {
+        configure(mgc, mgcCfg);
+      } else {
+        customElements.whenDefined('mini-graph-card').then(() => configure(mgc, mgcCfg));
+      }
+      wrap.dataset.mgcEntity = entityId;
+      wrap.appendChild(mgc);
+      // If mgc hasn't rendered an SVG within 6s (history fetch hung or no data), show — instead
+      setTimeout(() => {
+        if (wrap.dataset.mgcEntity !== entityId) return;
+        if (!mgc.shadowRoot?.querySelector('svg')) {
+          wrap.innerHTML = '';
+          delete wrap.dataset.mgcEntity;
+          wrap.dataset.mgcFailed = 'true';
+        }
+      }, 6000);
+    }
   }
 
   _renderGauge(score, color, maxScore = 100) {
@@ -384,6 +506,13 @@ class AirQualityCard extends LitElement {
     `;
   }
 
+  _timeAxis() {
+    const now = new Date();
+    const past = new Date(now.getTime() - 24 * 3600 * 1000);
+    const fmt = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return html`<div class="tile-time-axis"><span>${fmt(past)}</span><span>now</span></div>`;
+  }
+
   _renderTile(t) {
     const cfg = this._config;
     const p = palette(this._dark);
@@ -401,11 +530,19 @@ class AirQualityCard extends LitElement {
       valContent = html`${val.toFixed(1)}<span class="tile-unit"> ${t.unit}</span>`;
     }
     return html`
-      <div class="tile" data-key="${t.key}" @click=${() => this._tileClick(cfg[t.cfgKey])}>
-        <div class="tile-lbl">${label}</div>
-        <div class="tile-val${val === null ? ' na' : ''}">${valContent}</div>
-        <div class="tile-status" style="color:${statusColor}">${statusText}</div>
-        <div class="bar-bg"><div class="bar" style="width:${barWidth};background:${barBg}"></div></div>
+      <div class="tile" data-key="${t.key}"
+           @click=${(e) => { e.stopPropagation(); this._setHistoryView(!this._showHistory); }}>
+        <div class="tile-front">
+          <div class="tile-lbl">${label}</div>
+          <div class="tile-val${val === null ? ' na' : ''}">${valContent}</div>
+          <div class="tile-status" style="color:${statusColor}">${statusText}</div>
+          <div class="bar-bg"><div class="bar" style="width:${barWidth};background:${barBg}"></div></div>
+        </div>
+        <div class="tile-back">
+          <div class="tile-lbl">${label}</div>
+          <div class="mgc-wrap" data-tile-key="${t.key}"></div>
+          ${this._timeAxis()}
+        </div>
       </div>
     `;
   }
@@ -470,9 +607,12 @@ class AirQualityCard extends LitElement {
 
 const DISPLAY_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
-  { name: 'tile_tap_enabled',   label: 'Tap tile to open entity details',                                         selector: { boolean: {} } },
-  { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)',                           selector: { text: {} } },
+  { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
+  { name: 'tile_default',       label: 'Default tile view',                                                       selector: { select: { options: [
+    { value: 'current', label: 'Current values (tap to see 24h history)' },
+    { value: 'history', label: '24-hour history (tap to see current values)' },
+  ] } } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
 ];
 
@@ -521,8 +661,8 @@ class AirQualityCardEditor extends LitElement {
     const c = this._config;
     return {
       show_name:          c.show_name          ?? true,
-      tile_tap_enabled:   c.tile_tap_enabled   ?? true,
       use_chemical_names: c.use_chemical_names ?? false,
+      tile_default:       c.tile_default       ?? 'current',
       name:               c.name               ?? '',
       columns:            c.columns            ?? null,
     };
