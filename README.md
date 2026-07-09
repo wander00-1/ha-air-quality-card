@@ -1,6 +1,6 @@
 # Air Quality Card for Home Assistant
 
-A HACS-compatible Lovelace card for Home Assistant that turns your air quality sensors into a live dashboard — composite AQI gauge, per-pollutant tiles with status and progress bars, 24-hour trend graphs on tap, and displays temperature and humidity climate. Fully driven by your own entities, no cloud required. Supports 15+ pollutants out of the box plus custom tiles for any sensor, a drag-and-drop visual editor to organise tiles the way you like, and configurable thresholds per pollutant.
+A HACS-compatible Lovelace card for Home Assistant that turns your air quality sensors into a live dashboard. Composite AQI gauge, per-pollutant tiles with status and progress bars, 24-hour trend graphs on tap, and displays temperature and humidity climate. Fully driven by your own entities, no cloud required. Supports 15+ pollutants out of the box plus custom tiles for any sensor, a drag-and-drop visual editor to organise tiles the way you like, and configurable thresholds per pollutant.
 
 ![Card preview](screenshots/card-preview.png)
 
