@@ -1,9 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] - 2026-07-09
+
+### Added
+- Tile 24-hour history view — tap any pollutant tile to flip it and see a 24-hour trend graph; tap again to return.
+- `tile_default` config option — choose between *Current values* (default; tap to see 24h history) and *24-hour history* (tiles always show graphs; tap to temporarily see current values).
+- Chart line colour follows your configured thresholds (green → amber → orange → red).
+- Time axis at the bottom of each flipped tile shows the start time (24h ago) and "now".
+
+### Changed
+- Tapping a tile now toggles the history view instead of opening the entity detail popup. The `tile_tap_enabled` option has been removed.
 
 ### Fixed
-- Gauge, tile status, and temperature/humidity accent colours now adapt to Home Assistant's active light/dark mode (`hass.themes.darkMode`) instead of using one fixed set of hex values. The dark-mode palette is unchanged from before; a separate, higher-contrast palette is now used when HA is in light mode.
+- Gauge, tile status, and temperature/humidity accent colours now adapt to HA's active light/dark mode — a higher-contrast palette is used in light mode.
+- Tiles showing a missing or unavailable sensor no longer spin indefinitely — the tile back clears to `—` after 6 seconds if the history graph fails to load.
 
 ## [1.1.3] - 2026-07-08
 
