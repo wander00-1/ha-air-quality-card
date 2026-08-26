@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.1] - 2026-08-27
 
 ### Fixed
 - Temperature unit now reads from the entity's `unit_of_measurement` attribute instead of being hardcoded as °C — sensors reporting °F (or any other unit) now display correctly (closes #8)
