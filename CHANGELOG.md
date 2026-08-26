@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2026-08-27
+
+### Fixed
+- Temperature unit now reads from the entity's `unit_of_measurement` attribute instead of being hardcoded as °C — sensors reporting °F (or any other unit) now display correctly (closes #8)
+- Custom tile units now fall back to the entity's `unit_of_measurement` when no unit is configured in the tile settings (closes #10)
+
 ## [1.2.0] - 2026-07-09
 
 ### Added
