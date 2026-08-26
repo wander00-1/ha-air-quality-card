@@ -527,7 +527,8 @@ class AirQualityCard extends LitElement {
       const { idx, pct } = tileStatus(t.key, val, cfg);
       statusText = STATUS_LABELS[idx]; statusColor = p[STATUS_KEYS[idx]];
       barWidth = `${Math.min(100, pct).toFixed(1)}%`; barBg = statusColor;
-      valContent = html`${val.toFixed(1)}<span class="tile-unit"> ${t.unit}</span>`;
+      const unit = t.unit || this._hass?.states[this._config[t.cfgKey]]?.attributes?.unit_of_measurement || '';
+      valContent = html`${val.toFixed(1)}<span class="tile-unit"> ${unit}</span>`;
     }
     return html`
       <div class="tile" data-key="${t.key}"
@@ -568,6 +569,7 @@ class AirQualityCard extends LitElement {
     const showName = cfg.show_name !== false && !!name;
     const tempV    = this._stateVal(cfg.temperature_entity);
     const humV     = this._stateVal(cfg.humidity_entity);
+    const tempUnit = this._hass?.states[cfg.temperature_entity]?.attributes?.unit_of_measurement || '°C';
     const hasGraph = !!(cfg.temperature_entity || cfg.humidity_entity);
     const tiles    = sortedTiles(cfg);
     return html`
@@ -584,7 +586,7 @@ class AirQualityCard extends LitElement {
                 ${cfg.temperature_entity ? html`
                   <div class="climate-val">
                     <span class="climate-val-label" style="color:${p.temperature}">Temperature</span>
-                    <span class="climate-val-num">${tempV !== null ? `${tempV.toFixed(1)} °C` : '—'}</span>
+                    <span class="climate-val-num">${tempV !== null ? `${tempV.toFixed(1)} ${tempUnit}` : '—'}</span>
                   </div>` : ''}
                 ${cfg.humidity_entity ? html`
                   <div class="climate-val">
