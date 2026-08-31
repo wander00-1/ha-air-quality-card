@@ -625,7 +625,10 @@ const DISPLAY_SCHEMA = [
     { value: 'history', label: '24-hour history (tap to see current values)' },
   ] } } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
-  { name: 'aqi_use_defaults',  label: 'Use default AQI scale (US EPA 0–500) — uncheck to set a custom scale',    selector: { boolean: {} } },
+];
+
+const AQI_TOGGLE_SCHEMA = [
+  { name: 'aqi_use_defaults', label: 'Use default AQI scale (US EPA 0–500) — uncheck to set a custom scale', selector: { boolean: {} } },
 ];
 
 const AQI_SCALE_SCHEMA = [
@@ -684,7 +687,6 @@ class AirQualityCardEditor extends LitElement {
       tile_default:       c.tile_default       ?? 'current',
       name:               c.name               ?? '',
       columns:            c.columns            ?? null,
-      aqi_use_defaults:   c.aqi_use_defaults   ?? true,
     };
   }
 
@@ -863,14 +865,6 @@ class AirQualityCardEditor extends LitElement {
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
-      ${this._config?.aqi_use_defaults === false ? html`
-      <ha-form
-        .schema=${AQI_SCALE_SCHEMA}
-        .data=${this._aqiScaleFormData()}
-        .hass=${this._hass}
-        .computeLabel=${(s) => s.label}
-        @value-changed=${(e) => this._updateConfig(e.detail.value)}
-      ></ha-form>` : ''}
       <div class="section-header">Entities</div>
       <ha-form
         .schema=${ENTITY_SCHEMA}
@@ -880,7 +874,22 @@ class AirQualityCardEditor extends LitElement {
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
       ${this._config?.aqi_entity ? html`
-      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>` : ''}
+      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>
+      <ha-form
+        .schema=${AQI_TOGGLE_SCHEMA}
+        .data=${{ aqi_use_defaults: this._config?.aqi_use_defaults ?? true }}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
+      ${this._config?.aqi_use_defaults === false ? html`
+      <ha-form
+        .schema=${AQI_SCALE_SCHEMA}
+        .data=${this._aqiScaleFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>` : ''}` : ''}
       <div class="section-header">Pollutant Tiles</div>
       <div class="tiles-section">
         ${tiles.map(t => this._renderTileRow(t, tiles))}
