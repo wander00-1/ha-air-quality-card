@@ -291,6 +291,7 @@ const EDITOR_CSS = `
   .section-header { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); padding: 16px 16px 0; border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12)); margin-top: 8px; }
   .section-header:first-child { border-top: none; margin-top: 0; padding-top: 8px; }
   .tiles-section { padding: 8px 16px 12px; }
+  .editor-note { font-size: 12px; color: var(--secondary-text-color, #aaa); padding: 6px 16px 8px; line-height: 1.4; }
   .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, rgba(0,0,0,0.04)); overflow: hidden; }
   .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
   .tile-row.dragging  { opacity: 0.3; }
@@ -869,7 +870,8 @@ class AirQualityCardEditor extends LitElement {
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
-      ></ha-form>` : ''}
+      ></ha-form>
+      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>` : ''}
       <div class="section-header">Entities</div>
       <ha-form
         .schema=${ENTITY_SCHEMA}
