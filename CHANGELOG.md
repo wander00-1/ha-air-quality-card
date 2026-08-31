@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0] - 2026-09-01
+
+### Added
+- Configurable AQI gauge scale — when an AQI entity is configured, a toggle appears below the entity picker. Uncheck **Use default AQI scale (US EPA 0–500)** to set a custom gauge maximum and Good/Moderate/Poor thresholds, useful for UK DAQI, Canada AQHI, and other regional standards (closes #9)
+
+### Fixed
+- README: corrected gauge maximum description — native AQI gauge fills proportionally across the full scale (0–500 by default), not capped at 100 as previously stated
+
 ## [1.2.1] - 2026-08-27
 
 ### Fixed

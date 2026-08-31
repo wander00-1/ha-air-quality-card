@@ -291,6 +291,7 @@ const EDITOR_CSS = `
   .section-header { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); padding: 16px 16px 0; border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12)); margin-top: 8px; }
   .section-header:first-child { border-top: none; margin-top: 0; padding-top: 8px; }
   .tiles-section { padding: 8px 16px 12px; }
+  .editor-note { font-size: 12px; color: var(--secondary-text-color, #aaa); padding: 6px 16px 8px; line-height: 1.4; }
   .tile-row { border-radius: 8px; margin-bottom: 6px; background: var(--secondary-background-color, rgba(0,0,0,0.04)); overflow: hidden; }
   .tile-row.drag-over { outline: 2px dashed var(--primary-color, #03a9f4); outline-offset: -2px; }
   .tile-row.dragging  { opacity: 0.3; }
@@ -560,9 +561,17 @@ class AirQualityCard extends LitElement {
     let score = null, scoreLabel = 'Unavailable', scoreColor = 'var(--secondary-text-color, #aaa)', maxScore = 100;
     if (hasScore) {
       const useNative = nativeAqi !== null;
-      score = useNative ? Math.round(Math.min(500, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
-      maxScore = useNative ? 500 : 100;
-      const band = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
+      const aqiDefaults = cfg.aqi_use_defaults !== false;
+      const aqiMax  = aqiDefaults ? 500 : (cfg.aqi_max || 500);
+      const aqiBands = aqiDefaults ? AQI_BANDS : [
+        { max: cfg.aqi_t1 ?? 50,  label: 'Good',     key: 'good' },
+        { max: cfg.aqi_t2 ?? 100, label: 'Moderate', key: 'moderate' },
+        { max: cfg.aqi_t3 ?? 200, label: 'Poor',     key: 'poor' },
+        { max: Infinity,           label: 'Bad',      key: 'bad' },
+      ];
+      score = useNative ? Math.round(Math.min(aqiMax, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
+      maxScore = useNative ? aqiMax : 100;
+      const band = scoreInfo(score, useNative ? aqiBands : SCORE_BANDS);
       scoreLabel = band.label; scoreColor = p[band.key];
     }
     const name     = this._deviceName();
@@ -618,10 +627,24 @@ const DISPLAY_SCHEMA = [
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
 ];
 
-const ENTITY_SCHEMA = [
-  { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly; falls back to computed)',          selector: { entity: { domain: 'sensor' } } },
-  { name: 'temperature_entity', label: 'Temperature Entity (climate display + graph)',                             selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-  { name: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)',                                selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+const AQI_TOGGLE_SCHEMA = [
+  { name: 'aqi_use_defaults', label: 'Use default AQI scale (US EPA 0–500) — uncheck to set a custom scale', selector: { boolean: {} } },
+];
+
+const AQI_SCALE_SCHEMA = [
+  { name: 'aqi_max', label: 'Gauge maximum',  selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t1',  label: 'Good up to',     selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t2',  label: 'Moderate up to', selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t3',  label: 'Poor up to',     selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+];
+
+const AQI_ENTITY_SCHEMA = [
+  { name: 'aqi_entity', label: 'AQI Entity (uses sensor value directly; falls back to computed)', selector: { entity: { domain: 'sensor' } } },
+];
+
+const CLIMATE_ENTITY_SCHEMA = [
+  { name: 'temperature_entity', label: 'Temperature Entity (climate display + graph)', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+  { name: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)',    selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
 ];
 
 class AirQualityCardEditor extends LitElement {
@@ -670,13 +693,18 @@ class AirQualityCardEditor extends LitElement {
     };
   }
 
-  _entityFormData() {
+  _aqiScaleFormData() {
     const c = this._config;
-    return {
-      aqi_entity:         c.aqi_entity         ?? '',
-      temperature_entity: c.temperature_entity ?? '',
-      humidity_entity:    c.humidity_entity    ?? '',
-    };
+    return { aqi_max: c.aqi_max ?? null, aqi_t1: c.aqi_t1 ?? null, aqi_t2: c.aqi_t2 ?? null, aqi_t3: c.aqi_t3 ?? null };
+  }
+
+  _aqiEntityFormData() {
+    return { aqi_entity: this._config.aqi_entity ?? '' };
+  }
+
+  _climateEntityFormData() {
+    const c = this._config;
+    return { temperature_entity: c.temperature_entity ?? '', humidity_entity: c.humidity_entity ?? '' };
   }
 
   _tileFormData(t) {
@@ -842,8 +870,32 @@ class AirQualityCardEditor extends LitElement {
       ></ha-form>
       <div class="section-header">Entities</div>
       <ha-form
-        .schema=${ENTITY_SCHEMA}
-        .data=${this._entityFormData()}
+        .schema=${AQI_ENTITY_SCHEMA}
+        .data=${this._aqiEntityFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
+      ${this._config?.aqi_entity ? html`
+      <ha-form
+        .schema=${AQI_TOGGLE_SCHEMA}
+        .data=${{ aqi_use_defaults: this._config?.aqi_use_defaults ?? true }}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
+      ${this._config?.aqi_use_defaults === false ? html`
+      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>
+      <ha-form
+        .schema=${AQI_SCALE_SCHEMA}
+        .data=${this._aqiScaleFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>` : ''}` : ''}
+      <ha-form
+        .schema=${CLIMATE_ENTITY_SCHEMA}
+        .data=${this._climateEntityFormData()}
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}

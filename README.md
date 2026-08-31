@@ -15,6 +15,7 @@ A HACS-compatible Lovelace card for Home Assistant that turns your air quality s
 - Per-card configurable thresholds for every pollutant tile, with sensible defaults
 - Graceful unavailable/unknown state handling — gauge and tiles clearly indicate when a sensor is offline
 - Supports a native AQI entity (uses the sensor value directly) or computes a score from PM2.5, VOC, and CO₂
+- **Configurable AQI gauge scale** — set a custom gauge maximum and Good/Moderate/Poor thresholds to match any regional AQI standard (UK DAQI 1–10, Canada AQHI 1–10+, etc.)
 - No hardcoded entities; works with any sensor integration
 
 ## Installation
@@ -64,8 +65,14 @@ no2_entity: sensor.nitrogen_dioxide
 temperature_entity: sensor.temperature
 humidity_entity: sensor.humidity
 show_name: true
-tile_default: current   # current | history
+tile_default: current        # current | history
 tile_order: [pm1, pm25, pm4, pm10, voc, co2]
+# Optional: custom AQI gauge scale (defaults to US EPA 0–500)
+# aqi_use_defaults: false
+# aqi_max: 10
+# aqi_t1: 3
+# aqi_t2: 6
+# aqi_t3: 7
 ```
 
 #### Custom tiles
@@ -119,12 +126,19 @@ custom_2_unit: ppm
 | `tile_default` | `current` | `current` — tap a tile to see 24h history, tap again to return; `history` — tiles always show 24h graphs, tap to temporarily see current values |
 | `use_chemical_names` | `false` | Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂) |
 | `columns` | — | Fixed number of tile columns (1–10); leave blank for automatic layout |
+| `aqi_use_defaults` | `true` | Use US EPA AQI scale (0–500). Set to `false` to enable custom scale fields below |
+| `aqi_max` | `500` | Gauge maximum — only used when `aqi_use_defaults: false` |
+| `aqi_t1` | `50` | Good threshold — scores up to this value are Good |
+| `aqi_t2` | `100` | Moderate threshold — scores up to this value are Moderate |
+| `aqi_t3` | `200` | Poor threshold — scores up to this value are Poor; above is Bad |
 
 ## Scoring
 
 ### Native AQI entity
 
-If `aqi_entity` is configured, the sensor value is used directly and displayed as-is in the gauge. This supports any scale — including the US AQI (0–500). The gauge arc fills proportionally up to a maximum of 100, so values above 100 show a full circle.
+If `aqi_entity` is configured, the sensor value is used directly and displayed as-is in the gauge. The gauge arc fills proportionally across the configured scale (default 0–500, matching the US EPA standard). Values are capped at the gauge maximum — if your sensor can report above the maximum you set, the displayed number will be capped at that maximum rather than showing the real value, so set it higher than your expected peak.
+
+By default the card uses US EPA bands:
 
 | Score | Status |
 |:-----:|--------|
@@ -132,6 +146,29 @@ If `aqi_entity` is configured, the sensor value is used directly and displayed a
 | 51–100 | Moderate |
 | 101–200 | Poor |
 | > 200 | Bad |
+
+#### Configurable AQI scale
+
+If your sensor uses a different standard, you can customise the gauge via the visual editor (uncheck **Use default AQI scale**) or YAML:
+
+```yaml
+aqi_use_defaults: false   # disable US EPA defaults
+aqi_max: 10               # gauge maximum (e.g. UK DAQI or Canada AQHI)
+aqi_t1: 3                 # Good up to this value
+aqi_t2: 6                 # Moderate up to this value
+aqi_t3: 7                 # Poor up to this value
+                          # Bad = anything above aqi_t3
+```
+
+Example scales:
+
+| Standard | `aqi_max` | `aqi_t1` | `aqi_t2` | `aqi_t3` |
+|----------|:---------:|:--------:|:--------:|:--------:|
+| US EPA (default) | 500 | 50 | 100 | 200 |
+| UK DAQI | 10 | 3 | 6 | 7 |
+| Canada AQHI | 11 | 3 | 6 | 10 |
+| China AQI | 500 | 50 | 100 | 200 |
+| India AQI | 500 | 50 | 100 | 200 |
 
 ### Computed score
 
@@ -186,6 +223,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v1.0** — Pollutant label overrides; per-tile settings sections; stable release; HACS default repository submission
 - [x] **v1.1** — Compact tile editor (add/remove/reorder inline); custom tiles; SO₂, O₃, CO pollutant tiles
 - [x] **v1.2** — 24-hour tile history flip; threshold-coloured graph line; `tile_default` setting; unavailable-sensor graceful fallback
+- [x] **v1.3** — Configurable AQI gauge scale; temperature and custom tile units read from entity attributes
 
 ## Credits
 
