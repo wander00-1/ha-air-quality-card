@@ -638,10 +638,13 @@ const AQI_SCALE_SCHEMA = [
   { name: 'aqi_t3',  label: 'Poor up to',     selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
 ];
 
-const ENTITY_SCHEMA = [
-  { name: 'aqi_entity',         label: 'AQI Entity (uses sensor value directly; falls back to computed)',          selector: { entity: { domain: 'sensor' } } },
-  { name: 'temperature_entity', label: 'Temperature Entity (climate display + graph)',                             selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-  { name: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)',                                selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+const AQI_ENTITY_SCHEMA = [
+  { name: 'aqi_entity', label: 'AQI Entity (uses sensor value directly; falls back to computed)', selector: { entity: { domain: 'sensor' } } },
+];
+
+const CLIMATE_ENTITY_SCHEMA = [
+  { name: 'temperature_entity', label: 'Temperature Entity (climate display + graph)', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+  { name: 'humidity_entity',    label: 'Humidity Entity (climate display + graph)',    selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
 ];
 
 class AirQualityCardEditor extends LitElement {
@@ -695,13 +698,13 @@ class AirQualityCardEditor extends LitElement {
     return { aqi_max: c.aqi_max ?? null, aqi_t1: c.aqi_t1 ?? null, aqi_t2: c.aqi_t2 ?? null, aqi_t3: c.aqi_t3 ?? null };
   }
 
-  _entityFormData() {
+  _aqiEntityFormData() {
+    return { aqi_entity: this._config.aqi_entity ?? '' };
+  }
+
+  _climateEntityFormData() {
     const c = this._config;
-    return {
-      aqi_entity:         c.aqi_entity         ?? '',
-      temperature_entity: c.temperature_entity ?? '',
-      humidity_entity:    c.humidity_entity    ?? '',
-    };
+    return { temperature_entity: c.temperature_entity ?? '', humidity_entity: c.humidity_entity ?? '' };
   }
 
   _tileFormData(t) {
@@ -867,14 +870,13 @@ class AirQualityCardEditor extends LitElement {
       ></ha-form>
       <div class="section-header">Entities</div>
       <ha-form
-        .schema=${ENTITY_SCHEMA}
-        .data=${this._entityFormData()}
+        .schema=${AQI_ENTITY_SCHEMA}
+        .data=${this._aqiEntityFormData()}
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
       ${this._config?.aqi_entity ? html`
-      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>
       <ha-form
         .schema=${AQI_TOGGLE_SCHEMA}
         .data=${{ aqi_use_defaults: this._config?.aqi_use_defaults ?? true }}
@@ -883,6 +885,7 @@ class AirQualityCardEditor extends LitElement {
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
       ${this._config?.aqi_use_defaults === false ? html`
+      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>
       <ha-form
         .schema=${AQI_SCALE_SCHEMA}
         .data=${this._aqiScaleFormData()}
@@ -890,6 +893,13 @@ class AirQualityCardEditor extends LitElement {
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>` : ''}` : ''}
+      <ha-form
+        .schema=${CLIMATE_ENTITY_SCHEMA}
+        .data=${this._climateEntityFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
       <div class="section-header">Pollutant Tiles</div>
       <div class="tiles-section">
         ${tiles.map(t => this._renderTileRow(t, tiles))}
