@@ -625,10 +625,13 @@ const DISPLAY_SCHEMA = [
   ] } } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
   { name: 'aqi_use_defaults',  label: 'Use default AQI scale (US EPA 0–500) — uncheck to set a custom scale',    selector: { boolean: {} } },
-  { name: 'aqi_max',           label: 'Gauge maximum',   selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
-  { name: 'aqi_t1',            label: 'Good up to',      selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
-  { name: 'aqi_t2',            label: 'Moderate up to',  selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
-  { name: 'aqi_t3',            label: 'Poor up to',      selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
+];
+
+const AQI_SCALE_SCHEMA = [
+  { name: 'aqi_max', label: 'Gauge maximum',  selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t1',  label: 'Good up to',     selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t2',  label: 'Moderate up to', selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
+  { name: 'aqi_t3',  label: 'Poor up to',     selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } } },
 ];
 
 const ENTITY_SCHEMA = [
@@ -681,11 +684,12 @@ class AirQualityCardEditor extends LitElement {
       name:               c.name               ?? '',
       columns:            c.columns            ?? null,
       aqi_use_defaults:   c.aqi_use_defaults   ?? true,
-      aqi_max:            c.aqi_max            ?? null,
-      aqi_t1:             c.aqi_t1             ?? null,
-      aqi_t2:             c.aqi_t2             ?? null,
-      aqi_t3:             c.aqi_t3             ?? null,
     };
+  }
+
+  _aqiScaleFormData() {
+    const c = this._config;
+    return { aqi_max: c.aqi_max ?? null, aqi_t1: c.aqi_t1 ?? null, aqi_t2: c.aqi_t2 ?? null, aqi_t3: c.aqi_t3 ?? null };
   }
 
   _entityFormData() {
@@ -858,6 +862,14 @@ class AirQualityCardEditor extends LitElement {
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
+      ${this._config?.aqi_use_defaults === false ? html`
+      <ha-form
+        .schema=${AQI_SCALE_SCHEMA}
+        .data=${this._aqiScaleFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>` : ''}
       <div class="section-header">Entities</div>
       <ha-form
         .schema=${ENTITY_SCHEMA}
