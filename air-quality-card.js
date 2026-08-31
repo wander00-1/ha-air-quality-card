@@ -560,9 +560,17 @@ class AirQualityCard extends LitElement {
     let score = null, scoreLabel = 'Unavailable', scoreColor = 'var(--secondary-text-color, #aaa)', maxScore = 100;
     if (hasScore) {
       const useNative = nativeAqi !== null;
-      score = useNative ? Math.round(Math.min(500, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
-      maxScore = useNative ? 500 : 100;
-      const band = scoreInfo(score, useNative ? AQI_BANDS : SCORE_BANDS);
+      const aqiDefaults = cfg.aqi_use_defaults !== false;
+      const aqiMax  = aqiDefaults ? 500 : (cfg.aqi_max || 500);
+      const aqiBands = aqiDefaults ? AQI_BANDS : [
+        { max: cfg.aqi_t1 ?? 50,  label: 'Good',     key: 'good' },
+        { max: cfg.aqi_t2 ?? 100, label: 'Moderate', key: 'moderate' },
+        { max: cfg.aqi_t3 ?? 200, label: 'Poor',     key: 'poor' },
+        { max: Infinity,           label: 'Bad',      key: 'bad' },
+      ];
+      score = useNative ? Math.round(Math.min(aqiMax, Math.max(0, nativeAqi))) : computeScore(pm25Val, vocVal, co2Val);
+      maxScore = useNative ? aqiMax : 100;
+      const band = scoreInfo(score, useNative ? aqiBands : SCORE_BANDS);
       scoreLabel = band.label; scoreColor = p[band.key];
     }
     const name     = this._deviceName();
@@ -616,6 +624,11 @@ const DISPLAY_SCHEMA = [
     { value: 'history', label: '24-hour history (tap to see current values)' },
   ] } } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
+  { name: 'aqi_use_defaults',  label: 'Use default AQI scale (US EPA 0–500) — uncheck to set a custom scale',    selector: { boolean: {} } },
+  { name: 'aqi_max',           label: 'Gauge maximum',   selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
+  { name: 'aqi_t1',            label: 'Good up to',      selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
+  { name: 'aqi_t2',            label: 'Moderate up to',  selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
+  { name: 'aqi_t3',            label: 'Poor up to',      selector: { number: { min: 1, max: 10000, step: 1, mode: 'box' } }, conditions: [{ field: 'aqi_use_defaults', value: false }] },
 ];
 
 const ENTITY_SCHEMA = [
@@ -667,6 +680,11 @@ class AirQualityCardEditor extends LitElement {
       tile_default:       c.tile_default       ?? 'current',
       name:               c.name               ?? '',
       columns:            c.columns            ?? null,
+      aqi_use_defaults:   c.aqi_use_defaults   ?? true,
+      aqi_max:            c.aqi_max            ?? null,
+      aqi_t1:             c.aqi_t1             ?? null,
+      aqi_t2:             c.aqi_t2             ?? null,
+      aqi_t3:             c.aqi_t3             ?? null,
     };
   }
 
