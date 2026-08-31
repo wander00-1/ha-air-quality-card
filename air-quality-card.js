@@ -864,14 +864,14 @@ class AirQualityCardEditor extends LitElement {
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
       ${this._config?.aqi_use_defaults === false ? html`
+      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>
       <ha-form
         .schema=${AQI_SCALE_SCHEMA}
         .data=${this._aqiScaleFormData()}
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
-      ></ha-form>
-      <div class="editor-note">Note: if the AQI value exceeds the gauge maximum, the number displayed on the gauge will be capped at the maximum rather than showing the real sensor value. Set the maximum higher than your expected peak AQI to avoid this.</div>` : ''}
+      ></ha-form>` : ''}
       <div class="section-header">Entities</div>
       <ha-form
         .schema=${ENTITY_SCHEMA}
