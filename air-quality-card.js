@@ -19,6 +19,23 @@ function hassStatesChanged(ids, newHass, oldHass) {
   return !oldHass || ids.some(id => newHass.states[id] !== oldHass.states[id]);
 }
 
+// Which optional sections are visible. The gauge defaults to on (only an
+// explicit `show_gauge: false` hides it). The top row holds the gauge and the
+// climate block, so it drops out entirely when neither is present rather than
+// leaving an empty gap above the tiles. The AQI scale controls only affect the
+// gauge, so the editor hides them along with it.
+function layoutFlags(config) {
+  const c = config || {};
+  const showGauge   = c.show_gauge !== false;
+  const hasClimate  = !!(c.temperature_entity || c.humidity_entity);
+  return {
+    showGauge,
+    hasClimate,
+    showTop:        showGauge || hasClimate,
+    showAqiScale:   showGauge && !!c.aqi_entity,
+  };
+}
+
 // Browser bootstrap. Guarded so the file can be require()'d under Node for unit
 // testing without a DOM — in Node there is no window/customElements, so we skip
 // straight past registration and only the module-level exports are accessible.
@@ -581,14 +598,15 @@ class AirQualityCard extends LitElement {
     const tempUnit = this._hass?.states[cfg.temperature_entity]?.attributes?.unit_of_measurement || '°C';
     const hasGraph = !!(cfg.temperature_entity || cfg.humidity_entity);
     const tiles    = sortedTiles(cfg);
+    const { showGauge, showTop } = layoutFlags(cfg);
     return html`
       <ha-card>
         ${showName ? html`<div class="card-name">${name}</div>` : ''}
-        <div class="top">
-          <div class="gauge-wrap">
+        ${showTop ? html`<div class="top">
+          ${showGauge ? html`<div class="gauge-wrap">
             ${this._renderGauge(score, scoreColor, maxScore)}
             <div class="score-label" style="color:${scoreColor}">${scoreLabel}</div>
-          </div>
+          </div>` : ''}
           <div class="right">
             ${(cfg.temperature_entity || cfg.humidity_entity) ? html`
               <div class="climate-vals">
@@ -605,7 +623,7 @@ class AirQualityCard extends LitElement {
               </div>` : ''}
             ${hasGraph ? html`<div class="graph-slot"><mini-graph-card></mini-graph-card></div>` : ''}
           </div>
-        </div>
+        </div>` : ''}
         <div class="tiles" style="${cfg.columns ? `grid-template-columns:repeat(${cfg.columns},1fr)` : ''}">
           ${tiles.map(t => this._renderTile(t))}
         </div>
@@ -618,6 +636,7 @@ class AirQualityCard extends LitElement {
 
 const DISPLAY_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
+  { name: 'show_gauge',         label: 'Show AQI gauge',                                                          selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)',                           selector: { text: {} } },
   { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
   { name: 'tile_default',       label: 'Default tile view',                                                       selector: { select: { options: [
@@ -686,6 +705,7 @@ class AirQualityCardEditor extends LitElement {
     const c = this._config;
     return {
       show_name:          c.show_name          ?? true,
+      show_gauge:         c.show_gauge         ?? true,
       use_chemical_names: c.use_chemical_names ?? false,
       tile_default:       c.tile_default       ?? 'current',
       name:               c.name               ?? '',
@@ -876,7 +896,7 @@ class AirQualityCardEditor extends LitElement {
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}
       ></ha-form>
-      ${this._config?.aqi_entity ? html`
+      ${layoutFlags(this._config).showAqiScale ? html`
       <ha-form
         .schema=${AQI_TOGGLE_SCHEMA}
         .data=${{ aqi_use_defaults: this._config?.aqi_use_defaults ?? true }}
@@ -926,5 +946,5 @@ customElements.define('air-quality-card-editor', AirQualityCardEditor);
 // Expose module-level exports to the Node test runner. `module` is undefined in
 // the browser ES-module context, so this is a no-op there.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { watchedEntityIds, hassStatesChanged, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES, palette };
+  module.exports = { watchedEntityIds, hassStatesChanged, layoutFlags, scoreInfo, computeScore, tileStatus, sortedTiles, THRESHOLDS, SCORE_BANDS, AQI_BANDS, TILE_DEFS, CHEMICAL_NAMES, palette };
 }
