@@ -226,6 +226,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v1.1** — Compact tile editor (add/remove/reorder inline); custom tiles; SO₂, O₃, CO pollutant tiles
 - [x] **v1.2** — 24-hour tile history flip; threshold-coloured graph line; `tile_default` setting; unavailable-sensor graceful fallback
 - [x] **v1.3** — Configurable AQI gauge scale; temperature and custom tile units read from entity attributes
+- [x] **v1.4** — Option to hide the AQI gauge for a tiles-only layout
 
 ## Credits
 
