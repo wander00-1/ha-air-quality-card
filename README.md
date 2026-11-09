@@ -65,6 +65,7 @@ no2_entity: sensor.nitrogen_dioxide
 temperature_entity: sensor.temperature
 humidity_entity: sensor.humidity
 show_name: true
+show_gauge: true             # false hides the AQI gauge
 tile_default: current        # current | history
 tile_order: [pm1, pm25, pm4, pm10, voc, co2]
 # Optional: custom AQI gauge scale (defaults to US EPA 0–500)
@@ -122,6 +123,7 @@ custom_2_unit: ppm
 | Key | Default | Description |
 |-----|:-------:|-------------|
 | `show_name` | `true` | Show device name above the card |
+| `show_gauge` | `true` | Show the circular AQI gauge. Set to `false` for a tiles-only layout (temperature and humidity still show if configured) |
 | `name` | — | Override the device name with a custom string |
 | `tile_default` | `current` | `current` — tap a tile to see 24h history, tap again to return; `history` — tiles always show 24h graphs, tap to temporarily see current values |
 | `use_chemical_names` | `false` | Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂) |
@@ -224,6 +226,7 @@ Default thresholds (all configurable per card in the visual editor):
 - [x] **v1.1** — Compact tile editor (add/remove/reorder inline); custom tiles; SO₂, O₃, CO pollutant tiles
 - [x] **v1.2** — 24-hour tile history flip; threshold-coloured graph line; `tile_default` setting; unavailable-sensor graceful fallback
 - [x] **v1.3** — Configurable AQI gauge scale; temperature and custom tile units read from entity attributes
+- [x] **v1.4** — Option to hide the AQI gauge for a tiles-only layout
 
 ## Credits
 
