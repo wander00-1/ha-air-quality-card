@@ -636,7 +636,6 @@ class AirQualityCard extends LitElement {
 
 const DISPLAY_SCHEMA = [
   { name: 'show_name',          label: 'Show device name',                                                        selector: { boolean: {} } },
-  { name: 'show_gauge',         label: 'Show AQI gauge',                                                          selector: { boolean: {} } },
   { name: 'name',               label: 'Name override (leave blank to use device name)',                           selector: { text: {} } },
   { name: 'use_chemical_names', label: 'Show full chemical names on tiles (e.g. Carbon Dioxide instead of CO₂)', selector: { boolean: {} } },
   { name: 'tile_default',       label: 'Default tile view',                                                       selector: { select: { options: [
@@ -644,6 +643,10 @@ const DISPLAY_SCHEMA = [
     { value: 'history', label: '24-hour history (tap to see current values)' },
   ] } } },
   { name: 'columns',            label: 'Tile columns (leave blank for auto)',                                      selector: { number: { min: 1, max: 10, step: 1, mode: 'box' } } },
+];
+
+const GAUGE_TOGGLE_SCHEMA = [
+  { name: 'show_gauge', label: 'Show AQI gauge', selector: { boolean: {} } },
 ];
 
 const AQI_TOGGLE_SCHEMA = [
@@ -705,7 +708,6 @@ class AirQualityCardEditor extends LitElement {
     const c = this._config;
     return {
       show_name:          c.show_name          ?? true,
-      show_gauge:         c.show_gauge         ?? true,
       use_chemical_names: c.use_chemical_names ?? false,
       tile_default:       c.tile_default       ?? 'current',
       name:               c.name               ?? '',
@@ -892,6 +894,13 @@ class AirQualityCardEditor extends LitElement {
       <ha-form
         .schema=${AQI_ENTITY_SCHEMA}
         .data=${this._aqiEntityFormData()}
+        .hass=${this._hass}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${(e) => this._updateConfig(e.detail.value)}
+      ></ha-form>
+      <ha-form
+        .schema=${GAUGE_TOGGLE_SCHEMA}
+        .data=${{ show_gauge: this._config?.show_gauge ?? true }}
         .hass=${this._hass}
         .computeLabel=${(s) => s.label}
         @value-changed=${(e) => this._updateConfig(e.detail.value)}

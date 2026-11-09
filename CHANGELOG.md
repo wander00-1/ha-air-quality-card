@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- **Show AQI gauge** option (`show_gauge`, default `true`). Turn it off in the Display section of the editor, or set `show_gauge: false` in YAML, for a tiles-only layout. Temperature and humidity still show if configured; if they aren't, the top row is removed so there's no empty gap above the tiles. The AQI scale settings are hidden in the editor while the gauge is off (closes #13)
+- **Show AQI gauge** option (`show_gauge`, default `true`). Turn it off with the toggle below the AQI Entity picker in the editor, or set `show_gauge: false` in YAML, for a tiles-only layout. Temperature and humidity still show if configured; if they aren't, the top row is removed so there's no empty gap above the tiles. The AQI scale settings are hidden in the editor while the gauge is off (closes #13)
 
 ## [1.3.0] - 2026-09-01
 
