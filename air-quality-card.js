@@ -207,7 +207,10 @@ if (!LitElement || !html) {
 const CARD_CSS = `
   :host { display: block; }
   ha-card {
-    background: var(--ha-card-background);
+    /* Same fallback chain as HA's own ha-card. Most themes (including HA's
+       default) only set --card-background-color, so a bare
+       var(--ha-card-background) left the card transparent (#15). */
+    background: var(--ha-card-background, var(--card-background-color, #fff));
     color: var(--primary-text-color);
     border-radius: var(--ha-card-border-radius, 12px);
     padding: 16px;

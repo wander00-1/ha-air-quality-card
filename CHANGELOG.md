@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Card background was transparent on themes that only set `--card-background-color`, including HA's default theme. The card now uses the same background fallback as HA's built-in cards (closes #15)
+
 ## [1.4.0] - 2026-11-09
 
 ### Added
